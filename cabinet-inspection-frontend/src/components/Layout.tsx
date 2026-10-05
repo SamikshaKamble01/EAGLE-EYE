@@ -1,11 +1,8 @@
-// App shell: sidebar navigation, top bar (quick search, theme), live backend status.
+// App shell: sidebar navigation and top bar (quick search, theme).
 import { History as HistoryIcon, LayoutDashboard, Moon, ScanLine, Search, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { getHealth } from "../lib/api";
 import { useTheme } from "../lib/theme";
-import type { Health } from "../lib/types";
-import { useApi } from "../lib/useApi";
 import CommandPalette from "./CommandPalette";
 
 const nav = [
@@ -14,32 +11,10 @@ const nav = [
   { to: "/history", label: "History", icon: HistoryIcon, end: false },
 ];
 
-const HEALTH_POLL_MS = 15_000;
-
-function StatusPill({ data, offline }: { data: Health | null; offline: boolean }) {
-  const state = offline ? "offline" : !data ? "checking" : data.status === "ok" ? "online" : "degraded";
-  const color = { offline: "bg-red-500", checking: "bg-slate-400", online: "bg-emerald-500", degraded: "bg-amber-500" }[state];
-  return (
-    <div className="hidden items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-muted sm:flex" title="Checked every 15 seconds">
-      <span className="relative flex h-2 w-2">
-        {state === "online" && <span className={`ping-soft absolute inline-flex h-full w-full rounded-full ${color}`} />}
-        <span className={`relative inline-flex h-2 w-2 rounded-full ${color}`} />
-      </span>
-      Backend {state}
-    </div>
-  );
-}
-
 export default function Layout() {
   const location = useLocation();
   const { theme, toggle } = useTheme();
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const { data: health, error: healthError, reload: reloadHealth } = useApi(() => getHealth(), []);
-
-  useEffect(() => {
-    const t = setInterval(reloadHealth, HEALTH_POLL_MS);
-    return () => clearInterval(t);
-  }, [reloadHealth]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -90,7 +65,6 @@ export default function Layout() {
             <span className="kbd">Ctrl K</span>
           </button>
           <div className="ml-auto flex items-center gap-2">
-            <StatusPill data={health} offline={!!healthError} />
             <button
               onClick={toggle}
               title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
