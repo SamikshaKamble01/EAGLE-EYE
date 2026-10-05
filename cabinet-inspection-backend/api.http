@@ -1,0 +1,29 @@
+@base = http://127.0.0.1:5000/api
+
+### HEALTH
+GET http://127.0.0.1:5000/api/health
+
+### UPLOAD INSPECTION
+POST http://127.0.0.1:5000/api/inspections
+Content-Type: multipart/form-data; boundary=XYZ
+
+--XYZ
+Content-Disposition: form-data; name="cabinet_name"
+
+CC-01
+--XYZ
+Content-Disposition: form-data; name="image"; filename="cabinet_bad.png"
+Content-Type: image/png
+
+< ./samples/cabinet_bad.png
+--XYZ
+Content-Disposition: form-data; name="pdf"; filename="bom.pdf"
+Content-Type: application/pdf
+
+< ./samples/bom.pdf
+--XYZ
+Content-Disposition: form-data; name="excel"; filename="wiring.xlsx"
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+
+< ./samples/wiring.xlsx
+--XYZ--
