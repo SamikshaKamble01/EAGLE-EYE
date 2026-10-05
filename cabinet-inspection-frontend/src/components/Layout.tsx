@@ -1,5 +1,5 @@
 // App shell: sidebar navigation, top bar (quick search, theme), live backend status.
-import { Cpu, Database, History as HistoryIcon, LayoutDashboard, Moon, ScanLine, ScanText, Search, Sun } from "lucide-react";
+import { History as HistoryIcon, LayoutDashboard, Moon, ScanLine, Search, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { getHealth } from "../lib/api";
@@ -15,35 +15,6 @@ const nav = [
 ];
 
 const HEALTH_POLL_MS = 15_000;
-
-function HealthPanel({ data, offline }: { data: Health | null; offline: boolean }) {
-  const rows = [
-    { label: "OCR", icon: ScanText, ok: data?.services.ocr.available, detail: data?.services.ocr.engine },
-    { label: "Vision", icon: Cpu, ok: data?.services.vision.available, detail: data?.services.vision.backend },
-    { label: "Database", icon: Database, ok: data?.services.database.available, detail: "sqlite" },
-  ];
-  return (
-    <div className="rounded-xl border border-white/5 bg-white/5 p-3">
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Backend services</div>
-      {offline ? (
-        <div className="flex items-center gap-2 text-xs text-red-300">
-          <span className="h-2 w-2 rounded-full bg-red-400" /> Backend offline
-        </div>
-      ) : (
-        <ul className="space-y-1.5">
-          {rows.map(({ label, icon: Icon, ok, detail }) => (
-            <li key={label} className="flex items-center gap-2 text-xs text-slate-300">
-              <span className={`h-2 w-2 rounded-full ${ok === undefined ? "bg-slate-500" : ok ? "bg-emerald-400" : "bg-red-400"}`} />
-              <Icon size={13} className="text-slate-400" />
-              <span>{label}</span>
-              {detail && <span className="ml-auto font-mono text-[10px] text-slate-500">{detail}</span>}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
 
 function StatusPill({ data, offline }: { data: Health | null; offline: boolean }) {
   const state = offline ? "offline" : !data ? "checking" : data.status === "ok" ? "online" : "degraded";
@@ -94,7 +65,7 @@ export default function Layout() {
         <div className="flex items-center gap-2.5 px-1">
           <img src="/favicon.svg" alt="" className="h-9 w-9 rounded-lg shadow-lg shadow-sky-500/20" />
           <div>
-            <div className="text-sm font-bold leading-tight text-white">Cabinet Inspection</div>
+            <div className="text-sm font-bold leading-tight text-white">Eagle-Eye</div>
             <div className="text-[11px] text-slate-400">Expected vs actual</div>
           </div>
         </div>
@@ -106,9 +77,6 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
-        <div className="mt-auto hidden md:block">
-          <HealthPanel data={health} offline={!!healthError} />
-        </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
