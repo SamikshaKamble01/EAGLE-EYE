@@ -11,6 +11,14 @@
       rel="stylesheet"
     />
     <title>Cabinet Inspection</title>
+    <script>
+      // apply the saved theme before the first paint (see src/lib/theme.ts)
+      try {
+        if (localStorage.getItem("ci-theme") !== "light") document.documentElement.classList.add("dark");
+      } catch (e) {
+        document.documentElement.classList.add("dark");
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

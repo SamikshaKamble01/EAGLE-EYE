@@ -15,10 +15,12 @@ export function useApi<T>(load: () => Promise<T>, deps: unknown[]) {
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    setError(null);
+    // the previous data/error stay visible while reloading, so polling does not flicker
     load()
       .then((d) => {
-        if (alive) setData(d);
+        if (!alive) return;
+        setData(d);
+        setError(null);
       })
       .catch((e: unknown) => {
         if (alive) setError(e instanceof ApiError ? e : new ApiError(0, "unknown", String(e)));

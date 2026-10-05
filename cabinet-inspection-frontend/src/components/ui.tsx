@@ -1,11 +1,12 @@
 // Small reusable building blocks: badges, states, cards.
-import { CircleCheck, CircleX, LoaderCircle, TriangleAlert } from "lucide-react";
-import type { ReactNode } from "react";
+import { CircleCheck, CircleX, LoaderCircle, TriangleAlert, type LucideIcon } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { Severity, Verdict } from "../lib/types";
+import { CountUp, useCountUp } from "./charts";
 
 export function VerdictBadge({ verdict, size = "md" }: { verdict: Verdict | null; size?: "sm" | "md" | "lg" }) {
   if (!verdict) {
-    return <span className="rounded-md bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">ERROR</span>;
+    return <span className="rounded-md bg-slate-500/15 px-2 py-0.5 text-xs font-semibold text-muted">ERROR</span>;
   }
   const pass = verdict === "PASS";
   const Icon = pass ? CircleCheck : CircleX;
@@ -17,9 +18,9 @@ export function VerdictBadge({ verdict, size = "md" }: { verdict: Verdict | null
   const icon = { sm: 13, md: 16, lg: 28 }[size];
   return (
     <span
-      className={`inline-flex items-center rounded-lg font-extrabold ${sizes[size]} ${
-        pass ? "bg-emerald-600 text-white" : "bg-red-600 text-white"
-      }`}
+      className={`inline-flex items-center rounded-lg font-extrabold text-white ${sizes[size]} ${
+        pass ? "bg-emerald-600 shadow-emerald-500/30" : "bg-red-600 shadow-red-500/30"
+      } ${size === "lg" ? "shadow-lg" : ""}`}
     >
       <Icon size={icon} strokeWidth={2.5} />
       {verdict}
@@ -28,9 +29,9 @@ export function VerdictBadge({ verdict, size = "md" }: { verdict: Verdict | null
 }
 
 export const severityStyle: Record<Severity, { pill: string; bar: string; text: string; stroke: string }> = {
-  critical: { pill: "bg-red-100 text-red-700 ring-red-200", bar: "bg-red-500", text: "text-red-600", stroke: "#dc2626" },
-  major: { pill: "bg-amber-100 text-amber-800 ring-amber-200", bar: "bg-amber-500", text: "text-amber-600", stroke: "#d97706" },
-  minor: { pill: "bg-slate-100 text-slate-600 ring-slate-200", bar: "bg-slate-400", text: "text-slate-500", stroke: "#64748b" },
+  critical: { pill: "bg-red-500/10 text-red-600 ring-red-500/25 dark:text-red-400", bar: "bg-red-500", text: "text-red-500", stroke: "#dc2626" },
+  major: { pill: "bg-amber-500/10 text-amber-700 ring-amber-500/30 dark:text-amber-400", bar: "bg-amber-500", text: "text-amber-500", stroke: "#d97706" },
+  minor: { pill: "bg-slate-500/10 text-slate-600 ring-slate-500/25 dark:text-slate-300", bar: "bg-slate-400", text: "text-slate-400", stroke: "#64748b" },
 };
 
 export function SeverityBadge({ severity }: { severity: Severity }) {
@@ -44,7 +45,8 @@ export function SeverityBadge({ severity }: { severity: Severity }) {
 export function StatusText({ status }: { status: string }) {
   const ok = status === "ok";
   return (
-    <span className={`text-sm font-semibold ${ok ? "text-emerald-600" : "text-red-600"}`}>
+    <span className={`inline-flex items-center gap-1.5 text-sm font-semibold ${ok ? "text-emerald-500" : "text-red-500"}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${ok ? "bg-emerald-500" : "bg-red-500"}`} />
       {ok ? "OK" : status.replace(/_/g, " ")}
     </span>
   );
@@ -52,18 +54,25 @@ export function StatusText({ status }: { status: string }) {
 
 export function Loading({ label = "Loading…" }: { label?: string }) {
   return (
-    <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
+    <div className="flex items-center justify-center gap-2 py-16 text-muted">
       <LoaderCircle className="animate-spin" size={20} />
       {label}
     </div>
   );
 }
 
+/** Grey placeholder block shown while data loads. */
+export function Skeleton({ className = "" }: { className?: string }) {
+  return <div className={`skeleton ${className}`} />;
+}
+
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div className="card flex flex-col items-center gap-3 px-6 py-12 text-center">
-      <TriangleAlert className="text-red-500" size={32} />
-      <p className="max-w-md text-sm text-slate-600">{message}</p>
+    <div className="card anim-fade-up flex flex-col items-center gap-3 px-6 py-12 text-center">
+      <div className="rounded-full bg-red-500/10 p-3">
+        <TriangleAlert className="text-red-500" size={28} />
+      </div>
+      <p className="max-w-md text-sm text-muted">{message}</p>
       {onRetry && (
         <button className="btn btn-ghost" onClick={onRetry}>
           Try again
@@ -77,50 +86,108 @@ export function PageHeader({ title, subtitle, actions }: { title: ReactNode; sub
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+        {subtitle && <p className="mt-1 max-w-2xl text-sm text-muted">{subtitle}</p>}
       </div>
-      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }
 
-export function StatCard({ label, value, hint, accent = "text-slate-900" }: { label: string; value: ReactNode; hint?: ReactNode; accent?: string }) {
+const tones = {
+  sky: "bg-sky-500/10 text-sky-500",
+  emerald: "bg-emerald-500/10 text-emerald-500",
+  red: "bg-red-500/10 text-red-500",
+  amber: "bg-amber-500/10 text-amber-500",
+  slate: "bg-slate-500/10 text-muted",
+};
+
+export function StatCard({
+  label,
+  value,
+  decimals = 0,
+  suffix = "",
+  hint,
+  icon: Icon,
+  tone = "sky",
+  accent = "",
+  onClick,
+}: {
+  label: string;
+  value: number;
+  decimals?: number;
+  suffix?: string;
+  hint?: ReactNode;
+  icon: LucideIcon;
+  tone?: keyof typeof tones;
+  accent?: string;
+  onClick?: () => void;
+}) {
   return (
-    <div className="card p-5">
-      <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</div>
-      <div className={`mt-2 text-3xl font-bold tabular-nums ${accent}`}>{value}</div>
-      {hint && <div className="mt-1 text-xs text-slate-500">{hint}</div>}
+    <div className={`card card-hover h-full p-5 ${onClick ? "cursor-pointer" : ""}`} onClick={onClick}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</div>
+        <div className={`rounded-lg p-2 ${tones[tone]}`}>
+          <Icon size={18} />
+        </div>
+      </div>
+      <div className={`mt-1 text-3xl font-bold tabular-nums ${accent}`}>
+        <CountUp value={value} decimals={decimals} suffix={suffix} />
+      </div>
+      {hint && <div className="mt-1 text-xs text-muted">{hint}</div>}
     </div>
   );
 }
 
-/** Circular score gauge, 0-100 */
+export const scoreColor = (score: number) => (score >= 100 ? "#10b981" : score >= 75 ? "#f59e0b" : "#ef4444");
+
+/** Thin horizontal score bar used in lists and tables. */
+export function ScoreBar({ score }: { score: number | null }) {
+  if (score == null) return <span className="text-faint">–</span>;
+  return (
+    <div className="flex items-center justify-end gap-2">
+      <div className="hidden h-1.5 w-16 overflow-hidden rounded-full bg-raised sm:block">
+        <div className="anim-grow-x h-full rounded-full" style={{ width: `${score}%`, background: scoreColor(score) }} />
+      </div>
+      <span className="w-12 text-right text-sm font-semibold tabular-nums">{score}%</span>
+    </div>
+  );
+}
+
+/** Circular score gauge, 0-100. Fills up and counts up when it appears. */
 export function ScoreRing({ score, size = 96 }: { score: number; size?: number }) {
-  const stroke = 9;
+  const stroke = Math.max(8, size / 11);
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
-  const color = score >= 100 ? "#059669" : score >= 75 ? "#d97706" : "#dc2626";
+  const [ready, setReady] = useState(false);
+  const shown = useCountUp(score, 1100);
+  useEffect(() => {
+    const f = requestAnimationFrame(() => setReady(true));
+    return () => cancelAnimationFrame(f);
+  }, []);
+  const clamped = Math.min(Math.max(score, 0), 100);
   return (
-    <div className="relative" style={{ width: size, height: size }}>
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e2e8f0" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--line)" strokeWidth={stroke} />
         <circle
           cx={size / 2}
           cy={size / 2}
           r={r}
           fill="none"
-          stroke={color}
+          stroke={scoreColor(score)}
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={c}
-          strokeDashoffset={c * (1 - Math.min(Math.max(score, 0), 100) / 100)}
-          style={{ transition: "stroke-dashoffset .8s ease" }}
+          strokeDashoffset={ready ? c * (1 - clamped / 100) : c}
+          style={{ transition: "stroke-dashoffset 1.1s cubic-bezier(.2,.7,.2,1)" }}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-xl font-bold tabular-nums">{Math.round(score)}%</span>
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">score</span>
+        <span className="font-bold tabular-nums" style={{ fontSize: size / 4.4 }}>
+          {Math.round(shown)}%
+        </span>
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">score</span>
       </div>
     </div>
   );
