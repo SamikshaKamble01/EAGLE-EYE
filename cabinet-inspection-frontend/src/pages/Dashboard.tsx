@@ -3,6 +3,7 @@ import { Activity, ArrowRight, CircleCheck, CircleX, ClipboardList, Gauge, Refre
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Donut, TrendChart, type TrendPoint } from "../components/charts";
+import ScoreBreakdown from "../components/ScoreBreakdown";
 import { ErrorState, PageHeader, ScoreBar, SeverityBadge, Skeleton, StatCard, VerdictBadge, severityStyle } from "../components/ui";
 import { getStats, listInspections } from "../lib/api";
 import { defectTitle, formatDate, timeAgo } from "../lib/format";
@@ -16,6 +17,7 @@ export default function Dashboard() {
   const { data, loading, error, reload } = useApi(() => getStats(), []);
   const { data: list, reload: reloadList } = useApi(() => listInspections({ limit: TREND_POINTS }), []);
   const [live, setLive] = useState(true);
+  const [scoresOpen, setScoresOpen] = useState(false);
 
   // live mode: re-fetch quietly so new inspections appear without pressing F5
   useEffect(() => {
@@ -147,7 +149,8 @@ export default function Dashboard() {
             suffix="%"
             icon={Gauge}
             tone="amber"
-            hint="checks passed per inspection"
+            hint="click for the score chart"
+            onClick={() => setScoresOpen(true)}
           />
         </div>
       </div>
@@ -290,6 +293,15 @@ export default function Dashboard() {
           </ul>
         </div>
       </div>
+
+      {scoresOpen && (
+        <ScoreBreakdown
+          points={trend}
+          average={data.avg_score}
+          onClose={() => setScoresOpen(false)}
+          onSelect={(id) => navigate(`/inspections/${id}`)}
+        />
+      )}
     </>
   );
 }

@@ -6,6 +6,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from app import checks
 from app.errors import ParseError
 from app.services import excel_service, ocr_service, pdf_service, report_service, rule_engine, vision_service
 
@@ -23,7 +24,9 @@ def load_image(path: Path) -> np.ndarray:
     return image
 
 
-def run_inspection(inspection_id: str, cabinet_name: str, paths: dict, cfg: dict, out_dir: Path) -> dict:
+def run_inspection(inspection_id: str, cabinet_name: str, paths: dict, cfg: dict, out_dir: Path,
+                   previous: dict | None = None, round_no: int = 1) -> dict:
+    """`previous` = result of the inspection this one re-checks (after a fix)."""
     timings: dict[str, float] = {}
 
     def timed(name, fn, *args, **kwargs):
@@ -51,10 +54,31 @@ def run_inspection(inspection_id: str, cabinet_name: str, paths: dict, cfg: dict
     result["expected"] = {"components": expected_components, "wiring": expected_wiring["wires"]}
     result["actual"] = {"detections": vision["detections"], "ocr_texts": ocr["texts"]}
 
+    # ---- QC check sheet: every plug-in in app/checks/ adds its rows -------
+    ctx = checks.CheckContext(expected_components, expected_wiring, vision, ocr, result,
+                              image_size=(image.shape[1], image.shape[0]))
+    sheet = timed("checks", checks.run_all, ctx)
+    checks.apply_to_result(result, sheet)
+
+    if previous is not None:
+        before = checks.sheet_of(previous)
+        result["recheck"] = {
+            "round": round_no,
+            **checks.compare(before, sheet),
+            "before": {"verdict": previous["verdict"], "score": previous["score"],
+                       "failed": sum(i["result"] == "FAIL" for i in before)},
+            "after": {"verdict": result["verdict"], "score": result["score"],
+                      "failed": sum(i["result"] == "FAIL" for i in sheet)},
+        }
+
+    snippet_dir = out_dir / "snippets"
+    timed("snippets", report_service.save_snippets, image, sheet, snippet_dir)
     annotated = timed("annotate", report_service.annotate_image, image, vision, result,
                       out_dir / f"{inspection_id}_annotated.png")
     report = timed("report", report_service.build_pdf_report, inspection_id, cabinet_name,
-                   result, annotated, out_dir / f"{inspection_id}_report.pdf")
+                   result, annotated, out_dir / f"{inspection_id}_report.pdf", snippet_dir)
+    timed("checklist_xlsx", report_service.build_checklist_xlsx, inspection_id, cabinet_name,
+          result, snippet_dir, out_dir / f"{inspection_id}_checklist.xlsx")
 
     result["timings_ms"] = timings
     log.info("Inspection %s -> %s (%.1f%%) in %s", inspection_id, result["verdict"], result["score"], timings)

@@ -103,6 +103,9 @@ def _locate(detections: list[dict], bbox) -> dict | None:
     return nearest if gap(nearest) <= reach else None
 
 
+locate = _locate   # public name, used by the QC checks in app/checks/
+
+
 # --------------------------------------------------------------------------- #
 # main entry point
 # --------------------------------------------------------------------------- #

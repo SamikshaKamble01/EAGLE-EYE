@@ -40,6 +40,9 @@ CREATE TABLE IF NOT EXISTS defects (
     message         TEXT
 );
 
+-- re-checks: a new photo of the same cabinet after a fix points at the inspection it re-checks
+-- (columns parent_id / root_id / round are added by _migrate for databases created earlier)
+
 CREATE INDEX IF NOT EXISTS idx_defects_inspection ON defects(inspection_id);
 CREATE INDEX IF NOT EXISTS idx_inspections_created ON inspections(created_at);
 """
@@ -66,7 +69,17 @@ def init_db(app):
     app.teardown_appcontext(close_db)
     with app.app_context():
         get_db().executescript(SCHEMA)
+        _migrate(get_db())
         get_db().commit()
+
+
+def _migrate(db: sqlite3.Connection) -> None:
+    """Add columns introduced after the first version (keeps existing data)."""
+    have = {r["name"] for r in db.execute("PRAGMA table_info(inspections)")}
+    for name, ddl in (("parent_id", "TEXT"), ("root_id", "TEXT"), ("round", "INTEGER NOT NULL DEFAULT 1")):
+        if name not in have:
+            db.execute(f"ALTER TABLE inspections ADD COLUMN {name} {ddl}")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_inspections_root ON inspections(root_id)")
 
 
 # --------------------------------------------------------------------------- #
@@ -76,14 +89,16 @@ def new_id() -> str:
     return uuid.uuid4().hex
 
 
-def create_inspection(inspection_id: str, cabinet_name: str, paths: dict) -> None:
+def create_inspection(inspection_id: str, cabinet_name: str, paths: dict,
+                      parent_id: str | None = None, root_id: str | None = None, round_no: int = 1) -> None:
     db = get_db()
     db.execute(
         """INSERT INTO inspections (id, created_at, status, cabinet_name,
-                                    image_path, pdf_path, excel_path)
-           VALUES (?, ?, 'processing', ?, ?, ?, ?)""",
+                                    image_path, pdf_path, excel_path, parent_id, root_id, round)
+           VALUES (?, ?, 'processing', ?, ?, ?, ?, ?, ?, ?)""",
         (inspection_id, datetime.now(timezone.utc).isoformat(), cabinet_name,
-         str(paths["image"]), str(paths["pdf"]), str(paths["excel"])),
+         str(paths["image"]), str(paths["pdf"]), str(paths["excel"]),
+         parent_id, root_id or inspection_id, round_no),
     )
     db.commit()
 
@@ -123,6 +138,8 @@ def _row_to_dict(row: sqlite3.Row, include_details: bool) -> dict:
         "score": row["score"],
         "cabinet_name": row["cabinet_name"],
         "error": row["error"],
+        "parent_id": row["parent_id"],
+        "round": row["round"],
     }
     if include_details and row["summary_json"]:
         data["result"] = json.loads(row["summary_json"])
@@ -148,6 +165,23 @@ def list_inspections(limit: int = 50, offset: int = 0, verdict: str | None = Non
         [verdict.upper()] if verdict else [],
     ).fetchone()[0]
     return [_row_to_dict(r, False) for r in rows], total
+
+
+def list_chain(inspection_id: str) -> list[dict]:
+    """The first inspection of a cabinet and all its re-checks, oldest first."""
+    db = get_db()
+    row = db.execute("SELECT id, root_id FROM inspections WHERE id=?", (inspection_id,)).fetchone()
+    if row is None:
+        return []
+    root = row["root_id"] or row["id"]
+    rows = db.execute("SELECT * FROM inspections WHERE root_id=? OR id=? ORDER BY created_at", (root, root)).fetchall()
+    chain = []
+    for r in rows:
+        item = _row_to_dict(r, False)
+        failed = db.execute("SELECT COUNT(*) FROM defects WHERE inspection_id=? AND severity != 'minor'",
+                            (r["id"],)).fetchone()[0]
+        chain.append({**item, "open_issues": failed})
+    return chain
 
 
 def list_defects(inspection_id: str) -> list[dict]:

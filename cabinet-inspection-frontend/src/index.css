@@ -136,6 +136,11 @@ body {
     transform: scaleX(0);
   }
 }
+@keyframes grow-y {
+  from {
+    transform: scaleY(0);
+  }
+}
 @keyframes shimmer {
   to {
     background-position: -200% 0;

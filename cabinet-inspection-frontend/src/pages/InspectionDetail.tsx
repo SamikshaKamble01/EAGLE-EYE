@@ -1,17 +1,19 @@
 // Result page: verdict, score, defects (hover = highlight, click = pin + zoom on photo), checks, report.
-import { ArrowLeft, Braces, Check, Copy, Crosshair, Download, FileText, Search, Table2, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowLeft, ArrowRight, Braces, Check, Copy, Crosshair, FileSpreadsheet, FileText, RefreshCcw, Search, Table2, Trash2, TriangleAlert } from "lucide-react";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import CheckSheet from "../components/CheckSheet";
 import { useFeedback } from "../components/Feedback";
 import InspectionViewer from "../components/InspectionViewer";
+import RecheckDialog from "../components/RecheckDialog";
 import { ErrorState, ScoreRing, SeverityBadge, Skeleton, StatusText, VerdictBadge, severityStyle } from "../components/ui";
-import { deleteInspection, getInspection, reportUrl } from "../lib/api";
+import { checklistXlsxUrl, deleteInspection, getHistory, getInspection, reportUrl, snippetUrl } from "../lib/api";
 import { downloadCsv, downloadJson } from "../lib/export";
 import { defectTitle, formatDate, humanize } from "../lib/format";
 import type { Severity } from "../lib/types";
 import { useApi } from "../lib/useApi";
 
-type Tab = "components" | "wires" | "pipeline";
+type Tab = "sheet" | "components" | "wires" | "pipeline";
 
 export default function InspectionDetail() {
   const { id = "" } = useParams();
@@ -22,11 +24,20 @@ export default function InspectionDetail() {
   const [pinned, setPinned] = useState<string | null>(null);
   const [filter, setFilter] = useState<Severity | "all">("all");
   const [query, setQuery] = useState("");
-  const [tab, setTab] = useState<Tab>("components");
+  const { data: chain } = useApi(() => getHistory(id), [id]);
+  const [tab, setTab] = useState<Tab>("sheet");
+  const [recheckOpen, setRecheckOpen] = useState(false);
   const [problemsOnly, setProblemsOnly] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const result = data?.result;
+
+  // moving to another inspection (e.g. after a re-check) starts clean
+  useEffect(() => {
+    setPinned(null);
+    setHighlight(null);
+    setRecheckOpen(false);
+  }, [id]);
 
   const defects = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -126,6 +137,10 @@ export default function InspectionDetail() {
   const components = r.components.filter((c) => !problemsOnly || c.status !== "ok");
   const wires = r.wire_labels.filter((w) => !problemsOnly || w.status !== "ok");
   const active = highlight ?? pinned;
+  const sheet = r.checklist;
+  const shownTab: Tab = tab === "sheet" && !sheet ? "components" : tab;
+  const openIssues = sheet ? sheet.filter((i) => i.result === "FAIL").length : s.critical + s.major;
+  const proofFor = (code: string, item: string | null) => sheet?.find((i) => i.code === code && i.item === item && i.snippet);
 
   const exportDefects = () => {
     downloadCsv(`${fileBase}_defects.csv`, [
@@ -155,7 +170,12 @@ export default function InspectionDetail() {
             <div className="flex flex-wrap items-center gap-3">
               <VerdictBadge verdict={r.verdict} size="lg" />
               <div>
-                <h1 className="text-xl font-bold">{name}</h1>
+                <h1 className="flex flex-wrap items-center gap-2 text-xl font-bold">
+                  {name}
+                  {data.round > 1 && (
+                    <span className="rounded-full bg-sky-500/15 px-2.5 py-0.5 text-xs font-bold text-sky-600 dark:text-sky-400">Re-check {data.round - 1}</span>
+                  )}
+                </h1>
                 <p className="text-sm text-muted">{formatDate(data.created_at)}</p>
               </div>
             </div>
@@ -195,12 +215,17 @@ export default function InspectionDetail() {
             ))}
           </div>
           <div className="flex w-full flex-wrap gap-2 lg:w-44 lg:flex-col">
-            <a href={reportUrl(id)} target="_blank" rel="noreferrer" className="btn btn-primary">
-              <FileText size={16} /> Open PDF report
+            <button className={`btn ${pass ? "btn-ghost" : "btn-primary"}`} onClick={() => setRecheckOpen(true)} title="Upload a new photo after the fix">
+              <RefreshCcw size={16} /> Re-check
+            </button>
+            <a href={reportUrl(id)} target="_blank" rel="noreferrer" className={`btn ${pass ? "btn-primary" : "btn-ghost"}`}>
+              <FileText size={16} /> PDF report
             </a>
-            <a href={reportUrl(id, true)} className="btn btn-ghost">
-              <Download size={16} /> Download PDF
-            </a>
+            {sheet && (
+              <a href={checklistXlsxUrl(id)} className="btn btn-ghost" title="The filled QC check sheet as an Excel file">
+                <FileSpreadsheet size={16} /> QC sheet (Excel)
+              </a>
+            )}
             <div className="flex gap-2">
               <button className="btn btn-ghost flex-1 px-2" onClick={exportDefects} title="Export the defect list as CSV">
                 <Table2 size={16} /> CSV
@@ -222,6 +247,74 @@ export default function InspectionDetail() {
           </div>
         </div>
       </div>
+
+      {/* ---- re-check: before vs after ---- */}
+      {r.recheck && (
+        <div className="card anim-fade-up mb-6 p-5">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+            <div>
+              <h2 className="flex items-center gap-2 font-semibold">
+                <RefreshCcw size={17} className="text-sky-500" /> Re-check after the fix
+              </h2>
+              {data.parent_id && (
+                <Link to={`/inspections/${data.parent_id}`} className="text-xs font-medium text-sky-500 hover:underline">
+                  Open the inspection before the fix
+                </Link>
+              )}
+            </div>
+            <div className="flex items-center gap-3 text-sm">
+              <div className="rounded-xl border border-line bg-raised px-3 py-1.5 text-center">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">Before</div>
+                <div className="font-bold tabular-nums">
+                  <span className={r.recheck.before.verdict === "PASS" ? "text-emerald-500" : "text-red-500"}>{r.recheck.before.verdict}</span>{" "}
+                  {r.recheck.before.score}%
+                </div>
+              </div>
+              <ArrowRight size={18} className="text-muted" />
+              <div className="rounded-xl border border-line bg-raised px-3 py-1.5 text-center">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">After</div>
+                <div className="font-bold tabular-nums">
+                  <span className={r.recheck.after.verdict === "PASS" ? "text-emerald-500" : "text-red-500"}>{r.recheck.after.verdict}</span>{" "}
+                  {r.recheck.after.score}%
+                </div>
+              </div>
+            </div>
+            <div className="ml-auto grid grid-cols-3 gap-3 text-center">
+              {(
+                [
+                  ["Closed", r.recheck.closed, "text-emerald-500"],
+                  ["Still open", r.recheck.still_open, "text-red-500"],
+                  ["New", r.recheck.new, "text-amber-500"],
+                ] as const
+              ).map(([label, list, color]) => (
+                <div key={label} className="rounded-xl border border-line bg-raised px-4 py-1.5">
+                  <div className={`text-2xl font-bold tabular-nums ${list.length ? color : "text-faint"}`}>{list.length}</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted">{label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {r.recheck.closed.length + r.recheck.still_open.length + r.recheck.new.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-3 text-xs">
+              {r.recheck.closed.map((x) => (
+                <span key={x.key} className="rounded-full bg-emerald-500/15 px-2.5 py-1 font-semibold text-emerald-600 dark:text-emerald-400">
+                  ✓ {x.check_title}: <span className="tag">{x.item}</span> closed
+                </span>
+              ))}
+              {r.recheck.still_open.map((x) => (
+                <span key={x.key} className="rounded-full bg-red-500/15 px-2.5 py-1 font-semibold text-red-600 dark:text-red-400">
+                  {x.check_title}: <span className="tag">{x.item}</span> still open
+                </span>
+              ))}
+              {r.recheck.new.map((x) => (
+                <span key={x.key} className="rounded-full bg-amber-500/15 px-2.5 py-1 font-semibold text-amber-700 dark:text-amber-400">
+                  {x.check_title}: <span className="tag">{x.item}</span> new
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ---- photo + defects ---- */}
       <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
@@ -284,6 +377,14 @@ export default function InspectionDetail() {
                     {d.item && <span className="tag ml-auto rounded bg-raised px-1.5 py-0.5 text-xs">{d.item}</span>}
                   </div>
                   <p className="mt-1.5 text-sm text-muted">{d.message}</p>
+                  {proofFor(d.code, d.item) && (
+                    <img
+                      src={snippetUrl(id, proofFor(d.code, d.item)!.snippet as string)}
+                      alt={`Proof for ${d.item}`}
+                      loading="lazy"
+                      className="mt-2 max-h-28 rounded-lg border border-line"
+                    />
+                  )}
                   {(d.expected || d.actual) && (
                     <div className="mt-1.5 flex gap-4 text-xs text-muted">
                       {d.expected && (
@@ -325,6 +426,7 @@ export default function InspectionDetail() {
           <div className="mr-auto flex rounded-lg bg-raised p-0.5 text-sm font-semibold">
             {(
               [
+                ...(sheet ? ([["sheet", `QC check sheet (${sheet.length})`]] as const) : []),
                 ["components", `Components (${r.components.length})`],
                 ["wires", `Wire labels (${r.wire_labels.length})`],
                 ["pipeline", "Pipeline"],
@@ -333,13 +435,13 @@ export default function InspectionDetail() {
               <button
                 key={key}
                 onClick={() => setTab(key)}
-                className={`cursor-pointer rounded-md px-3 py-1.5 transition ${tab === key ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"}`}
+                className={`cursor-pointer rounded-md px-3 py-1.5 transition ${shownTab === key ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"}`}
               >
                 {label}
               </button>
             ))}
           </div>
-          {tab !== "pipeline" && (
+          {(shownTab === "components" || shownTab === "wires") && (
             <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-muted">
               <input type="checkbox" className="accent-sky-500" checked={problemsOnly} onChange={(e) => setProblemsOnly(e.target.checked)} />
               Problems only
@@ -347,7 +449,11 @@ export default function InspectionDetail() {
           )}
         </div>
 
-        {tab === "components" && (
+        {shownTab === "sheet" && sheet && (
+          <CheckSheet id={id} sheet={sheet} checks={r.checks ?? []} highlight={highlight} pinned={pinned} onHover={setHighlight} onPin={togglePin} />
+        )}
+
+        {shownTab === "components" && (
           <div key="components" className="anim-fade-in overflow-x-auto">
             <table className="w-full">
               <thead className="bg-raised">
@@ -383,7 +489,7 @@ export default function InspectionDetail() {
           </div>
         )}
 
-        {tab === "wires" && (
+        {shownTab === "wires" && (
           <div key="wires" className="anim-fade-in overflow-x-auto">
             {r.wire_labels.length === 0 ? (
               <p className="p-6 text-sm text-muted">Wire label check is disabled in the backend settings.</p>
@@ -421,7 +527,7 @@ export default function InspectionDetail() {
           </div>
         )}
 
-        {tab === "pipeline" && (
+        {shownTab === "pipeline" && (
           <div key="pipeline" className="anim-fade-in grid gap-8 p-5 md:grid-cols-[1.4fr_1fr]">
             <div>
               <div className="mb-3 flex items-baseline justify-between">
@@ -458,6 +564,37 @@ export default function InspectionDetail() {
           </div>
         )}
       </div>
+
+      {/* ---- history of this cabinet: first inspection and every re-check ---- */}
+      {chain && chain.length > 1 && (
+        <div className="card mt-6 p-5">
+          <h2 className="font-semibold">History of this cabinet</h2>
+          <p className="mb-4 text-xs text-muted">Every photo that was checked, from the first inspection to the latest re-check</p>
+          <ol className="flex flex-wrap items-stretch gap-2">
+            {chain.map((h, i) => (
+              <li key={h.id} className="flex items-center gap-2">
+                {i > 0 && <ArrowRight size={16} className="text-faint" />}
+                <Link
+                  to={`/inspections/${h.id}`}
+                  className={`block rounded-xl border px-3 py-2 transition hover:-translate-y-0.5 ${
+                    h.id === id ? "border-sky-500 bg-sky-500/10" : "border-line bg-raised hover:border-sky-400/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <VerdictBadge verdict={h.verdict} size="sm" />
+                    <span className="text-sm font-semibold">{h.round > 1 ? `Re-check ${h.round - 1}` : "First inspection"}</span>
+                  </div>
+                  <div className="mt-1 text-xs text-muted">
+                    {formatDate(h.created_at)} · {h.score != null ? `${h.score}%` : "–"} · {h.open_issues} open
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {recheckOpen && <RecheckDialog id={id} cabinetName={name} openIssues={openIssues} onClose={() => setRecheckOpen(false)} />}
 
       {/* ---- footer ---- */}
       <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted">

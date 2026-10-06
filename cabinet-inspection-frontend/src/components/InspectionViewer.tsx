@@ -26,6 +26,7 @@ interface Box {
   bbox: BBox;
   label: string;
   kind: Kind;
+  dashed?: boolean; // "expected here" - the part itself is missing
 }
 
 interface View {
@@ -77,6 +78,13 @@ export default function InspectionViewer({ id, result, highlight, pinned, onHove
     for (const t of result.actual.ocr_texts) {
       if (unexpected.has(t.text) && !list.some((b) => b.item === t.text)) {
         list.push({ key: `u-${t.text}`, item: t.text, bbox: t.bbox, label: `${t.text} ?`, kind: "unexpected" });
+      }
+    }
+    // FAIL rows of the check sheet that are not drawn yet: missing parts get a
+    // dashed box at the place where they were expected
+    for (const it of result.checklist ?? []) {
+      if (it.result === "FAIL" && it.bbox && !list.some((b) => b.item === it.item)) {
+        list.push({ key: `f-${it.key}`, item: it.item, bbox: it.bbox, label: `${it.item}: ${it.found}`, kind: "unexpected", dashed: it.bbox_estimated });
       }
     }
     return list;
@@ -296,7 +304,8 @@ export default function InspectionViewer({ id, result, highlight, pinned, onHove
                             height={y2 - y1 + sw * 4}
                             fill={isActive ? `${color}33` : "transparent"}
                             stroke={color}
-                            strokeWidth={isActive ? sw * 2.2 : sw}
+                            strokeWidth={isActive ? sw * 2.2 : b.dashed ? sw * 1.4 : sw}
+                            strokeDasharray={b.dashed ? `${sw * 5} ${sw * 3}` : undefined}
                             rx={sw * 2}
                           />
                           {pinned === b.item && (
@@ -354,7 +363,7 @@ export default function InspectionViewer({ id, result, highlight, pinned, onHove
       <div className="flex flex-wrap items-center gap-x-1 gap-y-1 border-t border-line px-3 py-2 text-xs text-muted">
         <Legend color={COLORS.ok} text="Label matches" on={layers.ok} onToggle={toggleLayer("ok")} />
         <Legend color={COLORS.problem} text="Wrong label" on={layers.problem} onToggle={toggleLayer("problem")} />
-        <Legend color={COLORS.unexpected} text="Not in documents" on={layers.unexpected} onToggle={toggleLayer("unexpected")} />
+        <Legend color={COLORS.unexpected} text="Missing / not in documents" on={layers.unexpected} onToggle={toggleLayer("unexpected")} />
         <Legend color="#38bdf8" text="Detected component" dashed on={layers.detections} onToggle={toggleLayer("detections")} />
         {mode === "interactive" && <span className="ml-auto hidden text-faint sm:inline">click to show / hide</span>}
       </div>

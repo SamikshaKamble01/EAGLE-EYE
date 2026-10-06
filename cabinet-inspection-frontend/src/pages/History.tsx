@@ -272,7 +272,12 @@ export default function History() {
                     <td className="td whitespace-nowrap text-muted" title={formatDate(i.created_at)}>
                       {timeAgo(i.created_at)}
                     </td>
-                    <td className="td font-medium">{i.cabinet_name || <span className="text-faint">Unnamed</span>}</td>
+                    <td className="td font-medium">
+                      {i.cabinet_name || <span className="text-faint">Unnamed</span>}
+                      {i.round > 1 && (
+                        <span className="ml-2 rounded-full bg-sky-500/15 px-2 py-0.5 text-[11px] font-bold text-sky-600 dark:text-sky-400">Re-check {i.round - 1}</span>
+                      )}
+                    </td>
                     <td className="td">
                       <VerdictBadge verdict={i.verdict} size="sm" />
                     </td>

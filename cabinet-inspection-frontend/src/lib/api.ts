@@ -1,6 +1,6 @@
 // Every call to the backend lives in this one file.
 // "/api" is forwarded to http://127.0.0.1:5000 by vite.config.ts.
-import type { Health, Inspection, InspectionList, Stats, Verdict } from "./types";
+import type { Health, HistoryEntry, Inspection, InspectionList, Stats, Verdict } from "./types";
 
 const BASE: string = import.meta.env.VITE_API_URL ?? "/api";
 
@@ -90,10 +90,27 @@ export function createInspection(data: NewInspection, onUploadProgress?: (pct: n
   form.append("pdf", data.pdf);
   form.append("excel", data.excel);
   if (data.cabinetName) form.append("cabinet_name", data.cabinetName);
+  return upload("/inspections", form, onUploadProgress);
+}
 
+/**
+ * After a fix: send a new photo of the same cabinet. The backend reuses the
+ * drawing and wire list and answers with a new inspection whose
+ * result.recheck says what is closed / still open / new.
+ */
+export function recheckInspection(id: string, image: File, onUploadProgress?: (pct: number) => void): Promise<Inspection> {
+  const form = new FormData();
+  form.append("image", image);
+  return upload(`/inspections/${id}/recheck`, form, onUploadProgress);
+}
+
+/** The first inspection of a cabinet and all its re-checks, oldest first. */
+export const getHistory = (id: string) => request<{ items: HistoryEntry[] }>(`/inspections/${id}/history`).then((r) => r.items);
+
+function upload(path: string, form: FormData, onUploadProgress?: (pct: number) => void): Promise<Inspection> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${BASE}/inspections`);
+    xhr.open("POST", BASE + path);
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onUploadProgress) onUploadProgress(Math.round((e.loaded / e.total) * 100));
     };
@@ -126,3 +143,5 @@ export const reportUrl = (id: string, download = false) =>
   `${BASE}/inspections/${id}/report${download ? "?download=1" : ""}`;
 export const annotatedImageUrl = (id: string) => `${BASE}/inspections/${id}/annotated-image`;
 export const originalImageUrl = (id: string) => `${BASE}/inspections/${id}/image`;
+export const checklistXlsxUrl = (id: string) => `${BASE}/inspections/${id}/checklist.xlsx`;
+export const snippetUrl = (id: string, name: string) => `${BASE}/inspections/${id}/snippets/${name}`;

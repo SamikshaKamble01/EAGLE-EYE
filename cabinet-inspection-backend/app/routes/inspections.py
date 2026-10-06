@@ -15,6 +15,7 @@ log = logging.getLogger(__name__)
 bp = Blueprint("inspections", __name__, url_prefix="/api")
 
 _ID_RE = re.compile(r"^[0-9a-f]{32}$")
+_SNIPPET_RE = re.compile(r"^item_\d{3}\.png$")
 
 
 def _links(inspection_id: str) -> dict:
@@ -23,6 +24,9 @@ def _links(inspection_id: str) -> dict:
         "report_pdf": url_for("inspections.get_report", inspection_id=inspection_id, _external=True),
         "annotated_image": url_for("inspections.get_annotated", inspection_id=inspection_id, _external=True),
         "original_image": url_for("inspections.get_original", inspection_id=inspection_id, _external=True),
+        "checklist_xlsx": url_for("inspections.get_checklist", inspection_id=inspection_id, _external=True),
+        "history": url_for("inspections.get_history", inspection_id=inspection_id, _external=True),
+        "recheck": url_for("inspections.recheck", inspection_id=inspection_id, _external=True),
     }
 
 
@@ -60,9 +64,13 @@ def create():
     job_dir = cfg["STORAGE_DIR"] / "inspections" / inspection_id
     paths = {k: save_upload(files[k], job_dir / "uploads", k, ext) for k, ext in exts.items()}
     db.create_inspection(inspection_id, cabinet_name, paths)
+    return _run_and_respond(inspection_id, cabinet_name, paths, job_dir)
 
+
+def _run_and_respond(inspection_id, cabinet_name, paths, job_dir, previous=None, round_no=1):
     try:
-        out = run_inspection(inspection_id, cabinet_name, paths, cfg, job_dir / "output")
+        out = run_inspection(inspection_id, cabinet_name, paths, current_app.config, job_dir / "output",
+                             previous=previous, round_no=round_no)
     except AppError as exc:
         db.fail_inspection(inspection_id, exc.message)
         exc.details = {"inspection_id": inspection_id}
@@ -76,6 +84,59 @@ def create():
     data, _ = _load(inspection_id)
     data["links"] = _links(inspection_id)
     return jsonify(data), 201
+
+
+@bp.post("/inspections/<inspection_id>/recheck")
+def recheck(inspection_id):
+    """After a fix: multipart/form-data with a new `image`. The drawing and wire
+    list of the earlier inspection are reused; the answer says which issues are
+    now closed, which are still open and which are new."""
+    cfg = current_app.config
+    parent, row = _load(inspection_id)
+    if parent["status"] != "completed" or "result" not in parent:
+        raise ValidationError("Only a completed inspection can be re-checked.")
+    for key in ("pdf_path", "excel_path"):
+        if not row[key] or not Path(row[key]).is_file():
+            raise NotFound("The drawing / wire list of this inspection is no longer stored.")
+    ext = validate_upload(request.files.get("image"), "image", cfg["ALLOWED_IMAGE_EXT"])
+
+    new_id = db.new_id()
+    job_dir = cfg["STORAGE_DIR"] / "inspections" / new_id
+    uploads = job_dir / "uploads"
+    paths = {"image": save_upload(request.files["image"], uploads, "image", ext)}
+    for key in ("pdf", "excel"):                       # own copies, so deleting one never breaks the other
+        paths[key] = Path(shutil.copy2(row[f"{key}_path"], uploads / Path(row[f"{key}_path"]).name))
+    round_no = (row["round"] or 1) + 1
+    cabinet_name = parent["cabinet_name"] or ""
+    db.create_inspection(new_id, cabinet_name, paths, parent_id=inspection_id,
+                         root_id=row["root_id"] or inspection_id, round_no=round_no)
+    return _run_and_respond(new_id, cabinet_name, paths, job_dir, previous=parent["result"], round_no=round_no)
+
+
+@bp.get("/inspections/<inspection_id>/history")
+def get_history(inspection_id):
+    """The first inspection of this cabinet and every re-check, oldest first."""
+    _load(inspection_id, include_details=False)
+    return jsonify({"inspection_id": inspection_id, "items": db.list_chain(inspection_id)})
+
+
+@bp.get("/inspections/<inspection_id>/checklist.xlsx")
+def get_checklist(inspection_id):
+    """The filled QC check sheet as an Excel file."""
+    _, row = _load(inspection_id, include_details=False)
+    path = Path(row["report_path"]).with_name(f"{inspection_id}_checklist.xlsx") if row["report_path"] else None
+    return _send_existing(str(path) if path else None,
+                          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                          f"qc_check_sheet_{inspection_id[:8]}.xlsx", as_attachment=True)
+
+
+@bp.get("/inspections/<inspection_id>/snippets/<name>")
+def get_snippet(inspection_id, name):
+    """Zoomed photo crop that proves one FAIL of the check sheet."""
+    _, row = _load(inspection_id, include_details=False)
+    if not _SNIPPET_RE.match(name) or not row["report_path"]:
+        raise NotFound("Snippet not found.")
+    return _send_existing(str(Path(row["report_path"]).parent / "snippets" / name), "image/png", name)
 
 
 @bp.get("/inspections")

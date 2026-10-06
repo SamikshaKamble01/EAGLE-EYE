@@ -45,6 +45,55 @@ export interface OcrText {
   bbox: BBox;
 }
 
+/** One row of the QC check sheet (made by a plug-in in the backend's app/checks/). */
+export interface ChecklistItem {
+  no: number;
+  key: string; // stable id, e.g. "ga:K2" - used to match rows between re-checks
+  check: string; // ga | label | ferrule | extras | ...
+  check_title: string;
+  item: string;
+  description: string;
+  expected: string;
+  found: string;
+  result: "PASS" | "FAIL" | "WARN";
+  severity: Severity | null;
+  code: string | null;
+  message: string;
+  bbox: BBox | null;
+  bbox_estimated: boolean; // true = "the place where it was expected" (item is missing)
+  snippet: string | null; // file name of the zoomed proof picture
+  change: "closed" | "open" | "new" | null; // only set on a re-check
+}
+
+export interface CheckSummary {
+  id: string;
+  title: string;
+  kind: string;
+  passed: number;
+  failed: number;
+  warnings: number;
+}
+
+export interface RecheckRow {
+  key: string;
+  no: number | null;
+  check_title: string;
+  item: string;
+  description: string;
+  expected: string;
+  found: string;
+}
+
+/** Before vs after, present when the inspection is a re-check of an earlier one. */
+export interface Recheck {
+  round: number;
+  closed: RecheckRow[];
+  still_open: RecheckRow[];
+  new: RecheckRow[];
+  before: { verdict: Verdict; score: number; failed: number };
+  after: { verdict: Verdict; score: number; failed: number };
+}
+
 export interface InspectionResult {
   verdict: Verdict;
   score: number;
@@ -65,6 +114,10 @@ export interface InspectionResult {
   engines: { vision: string; ocr: string };
   actual: { detections: Detection[]; ocr_texts: OcrText[] };
   timings_ms: Record<string, number>;
+  // absent on inspections saved before the check sheet existed
+  checklist?: ChecklistItem[];
+  checks?: CheckSummary[];
+  recheck?: Recheck;
 }
 
 export interface InspectionSummary {
@@ -75,6 +128,12 @@ export interface InspectionSummary {
   score: number | null;
   cabinet_name: string | null;
   error: string | null;
+  parent_id: string | null; // the inspection this one re-checks
+  round: number; // 1 = first inspection, 2+ = re-check after a fix
+}
+
+export interface HistoryEntry extends InspectionSummary {
+  open_issues: number;
 }
 
 export interface Inspection extends InspectionSummary {

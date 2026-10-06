@@ -57,9 +57,9 @@ CORS_ORIGINS=http://localhost:5173      # your frontend URL
 ### Step 5 – Make sample files and run the tests
 ```powershell
 python scripts/make_samples.py     # creates samples/ (bom.pdf, wiring.xlsx, 2 photos)
-python -m pytest -v                # 18 tests: parsers, rules, full API flow
+python -m pytest -v                # 27 tests: parsers, rules, check sheet, re-check, full API flow
 ```
-All 18 should pass. `cabinet_good.png` must give **PASS**; `cabinet_bad.png`
+All 27 should pass. `cabinet_good.png` must give **PASS**; `cabinet_bad.png`
 must give **FAIL** with exactly: K2 missing, K1 labelled K7, wire 105 missing,
 undocumented Q9.
 
@@ -103,6 +103,10 @@ Let the agent run tests after every change – the test suite is your safety net
 | GET | `/api/inspections/<id>/annotated-image` | Photo with boxes (green OK, orange mismatch, blue detections) |
 | GET | `/api/inspections/<id>/image` | Original photo |
 | DELETE | `/api/inspections/<id>` | Delete record + files |
+| POST | `/api/inspections/<id>/recheck` | After a fix: multipart with a new `image`. Reuses the drawing + wire list, returns a new inspection with `result.recheck` (closed / still open / new) |
+| GET | `/api/inspections/<id>/history` | The first inspection of the cabinet and every re-check |
+| GET | `/api/inspections/<id>/checklist.xlsx` | Filled QC check sheet (Excel, with a proof sheet) |
+| GET | `/api/inspections/<id>/snippets/<file>` | Zoomed proof picture of one FAIL |
 
 ### Response (shortened)
 ```json
@@ -140,7 +144,69 @@ Errors are always JSON: `400 validation_error` (missing/wrong file),
 | WIRE_LABEL_MISSING / _MISMATCH | major | Wire number from Excel not found / misread |
 | UNEXPECTED_LABEL | minor | Tag in photo that no document mentions |
 
+| COMPONENT_ORDER | major | Devices of one family (K1, K2, K3 ...) are not in the order of the drawing |
+
 **FAIL** if any critical or major defect. Minor = warning only.
+
+---
+
+## QC check sheet (plug-in checks)
+
+Every inspection produces a **check sheet**: one row per thing that was checked,
+with `PASS` / `FAIL`, what the drawing expected, what the photo showed, and for
+every FAIL a box on the photo plus a zoomed snippet (`result.checklist`).
+For a missing part the box marks the place where it was expected (the gap
+between its neighbours).
+
+| Check | File | What it checks |
+|---|---|---|
+| GA check | `app/checks/ga_check.py` | Every part of the drawing is present, of the right kind, and in the right order |
+| Label check | `app/checks/label_check.py` | Every device label is readable and matches the drawing |
+| Ferrule check | `app/checks/ferrule_check.py` | Every wire sleeve of the wire list is fitted and readable |
+| Not in the documents | `app/checks/extras_check.py` | Labels in the photo that no document mentions (note only) |
+
+**Adding a check needs no rewrite** - drop a file into `app/checks/`; it is
+picked up automatically and appears in the web page, the PDF and the Excel sheet:
+
+```python
+# app/checks/earthing_check.py
+from app.checks.base import item, register
+
+@register("earthing", "Earthing check", order=50)
+def run(ctx):
+    ok = any(t["text"] == "PE" for t in ctx.ocr["texts"])
+    return [item("PE", "Earth bar label present", "PE", "PE" if ok else "Not found", ok,
+                 severity="major", code="EARTH_LABEL_MISSING",
+                 message="Earth bar label 'PE' was not found.")]
+```
+
+`ctx` gives the check the expected components (PDF), the wire list (Excel),
+the detections, the OCR texts and the rule-engine result.
+
+### Fix -> re-photo -> re-check
+1. The first inspection fails with open issues.
+2. The technician fixes the cabinet and takes a new photo.
+3. `POST /api/inspections/<id>/recheck` with that photo (button **Re-check** in the web page).
+4. Rows are matched by their key (`ga:K2`, `label:K1`, `ferrule:105` ...): a row that
+   failed and now passes is **closed**, one that still fails is **still open**, a
+   new failure is **new**. The PDF and Excel of the re-check show before vs after,
+   and `/history` keeps every round.
+
+---
+
+## Tools and AI models used
+
+| Step | Tool | AI model? |
+|---|---|---|
+| Read the drawing PDF | pdfplumber | no |
+| Read the wire list | pandas / openpyxl | no |
+| Find devices in the photo | OpenCV contours (default) or a YOLO model you train (`ultralytics`) | only with YOLO |
+| Read labels and ferrules | Tesseract OCR, LSTM engine (or EasyOCR) | yes |
+| Compare, check sheet, re-check | own Python rules (`rule_engine.py`, `app/checks/`) | no |
+| Reports | reportlab (PDF), openpyxl (Excel), OpenCV (marked-up photo, snippets) | no |
+
+Nothing is edited by hand: the check sheet, boxes, snippets and reports are all
+produced by the pipeline from the uploaded files.
 
 ---
 
@@ -187,15 +253,20 @@ app/
   db.py                  SQLite tables + queries
   errors.py              JSON error handling
   routes/                health.py, inspections.py
+  checks/                plug-in QC checks: base.py + ga, label, ferrule, extras (add your own here)
   services/              pdf, excel, vision, ocr, rule_engine, report, inspection_pipeline
   utils/                 text.py (label normalising, OCR-confusion folding), files.py (upload checks)
 scripts/                 make_samples.py, train_yolo.py
-tests/                   test_rule_engine.py, test_api.py
+tests/                   test_rule_engine.py, test_api.py, test_checks.py
 run.py / serve.py        dev / production server
 api.http                 ready-made requests
 ```
 
 ## Notes / limits
+- The stretch "wiring check" (wire colour, terminal and module in every slot) is
+  not implemented. It would be one more file in `app/checks/`.
+- The order check compares devices of the same family (K1, K2, K3 ...) row by row
+  with the order in which the drawing's table lists them.
 - Wiring is verified through wire-number labels. Proving that wire 101 really
   runs Q1:2 → K1:1 from one photo is not reliably possible; that needs close-up
   photos per terminal or a continuity test.
