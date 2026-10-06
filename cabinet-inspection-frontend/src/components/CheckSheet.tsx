@@ -1,6 +1,6 @@
 // The QC check sheet: every check as a row with PASS / FAIL, expected vs found,
 // and a zoomed proof picture for every FAIL. Click a row to find it on the photo.
-import { Crosshair, X } from "lucide-react";
+import { Crosshair, Wrench, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { snippetUrl } from "../lib/api";
@@ -135,6 +135,11 @@ export default function CheckSheet({ id, sheet, checks, highlight, pinned, onHov
                     </span>
                   )}
                   {i.result !== "PASS" && i.message && <div className="mt-1 max-w-72 text-xs text-muted">{i.message}</div>}
+                  {i.fix && (
+                    <div className="mt-1.5 flex max-w-72 gap-1.5 text-xs font-medium text-sky-600 dark:text-sky-400">
+                      <Wrench size={13} className="mt-0.5 shrink-0" /> {i.fix}
+                    </div>
+                  )}
                 </td>
                 <td className="td">
                   {i.snippet ? (
@@ -205,6 +210,15 @@ function ProofDialog({ id, item, onClose }: { id: string; item: ChecklistItem; o
             {item.message}
             {item.bbox_estimated && " The box marks the place where it was expected."}
           </p>
+          {item.fix && (
+            <div className="flex gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-sm sm:col-span-2">
+              <Wrench size={16} className="mt-0.5 shrink-0 text-sky-500" />
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted">How to fix</div>
+                {item.fix}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>,

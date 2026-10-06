@@ -39,6 +39,7 @@ export default function History() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const { data, loading, error, reload } = useApi(() => listInspections({ limit: LOAD_LIMIT }), []);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   const setQueryParams = (next: { verdict?: Filter; page?: number }) => {
     const q = new URLSearchParams(params);
@@ -118,6 +119,40 @@ export default function History() {
     reload();
   }
 
+  /** Deletes every inspection in the database, not only the ones loaded on this page. */
+  async function removeAll() {
+    const total = data?.total ?? all.length;
+    const ok = await confirm({
+      title: `Delete all ${total} inspections?`,
+      message: "Every record, photo and report is removed permanently. This cannot be undone.",
+      confirmLabel: "Delete all",
+      danger: true,
+    });
+    if (!ok) return;
+    setDeletingAll(true);
+    let deleted = 0;
+    let failed = 0;
+    try {
+      // the backend lists at most 100 at a time, so keep going until nothing is left
+      for (;;) {
+        const page = await listInspections({ limit: LOAD_LIMIT, offset: failed });
+        if (page.items.length === 0) break;
+        const results = await Promise.allSettled(page.items.map((i) => deleteInspection(i.id)));
+        const bad = results.filter((r) => r.status === "rejected").length;
+        deleted += results.length - bad;
+        failed += bad;
+      }
+      if (failed) toast(`${deleted} deleted, ${failed} could not be deleted`, "error");
+      else toast(`All ${deleted} inspections deleted`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Could not delete the inspections", "error");
+    } finally {
+      setDeletingAll(false);
+      setSelected(new Set());
+      reload();
+    }
+  }
+
   function exportCsv() {
     const list = selected.size ? rows.filter((i) => selected.has(i.id)) : rows;
     downloadCsv("inspections.csv", [
@@ -151,6 +186,9 @@ export default function History() {
             </button>
             <button className="btn btn-ghost" onClick={reload} title="Reload from the backend">
               <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Refresh
+            </button>
+            <button className="btn btn-danger" onClick={() => void removeAll()} disabled={!data?.total || deletingAll} title="Delete every inspection">
+              <Trash2 size={16} /> {deletingAll ? "Deleting…" : "Delete all"}
             </button>
           </>
         }

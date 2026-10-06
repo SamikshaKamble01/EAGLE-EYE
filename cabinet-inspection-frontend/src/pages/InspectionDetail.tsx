@@ -1,5 +1,5 @@
 // Result page: verdict, score, defects (hover = highlight, click = pin + zoom on photo), checks, report.
-import { ArrowLeft, ArrowRight, Braces, Check, Copy, Crosshair, FileSpreadsheet, FileText, RefreshCcw, Search, Table2, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowLeft, ArrowRight, Braces, Check, Copy, Crosshair, FileSpreadsheet, FileText, RefreshCcw, Search, Table2, Trash2, TriangleAlert, Wrench } from "lucide-react";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import CheckSheet from "../components/CheckSheet";
@@ -140,7 +140,9 @@ export default function InspectionDetail() {
   const sheet = r.checklist;
   const shownTab: Tab = tab === "sheet" && !sheet ? "components" : tab;
   const openIssues = sheet ? sheet.filter((i) => i.result === "FAIL").length : s.critical + s.major;
-  const proofFor = (code: string, item: string | null) => sheet?.find((i) => i.code === code && i.item === item && i.snippet);
+  const rowFor = (code: string, item: string | null) => sheet?.find((i) => i.code === code && i.item === item);
+  const proofFor = (code: string, item: string | null) => (rowFor(code, item)?.snippet ? rowFor(code, item) : undefined);
+  const fixes = (sheet ?? []).filter((i) => i.result === "FAIL" && i.fix);
 
   const exportDefects = () => {
     downloadCsv(`${fileBase}_defects.csv`, [
@@ -377,6 +379,12 @@ export default function InspectionDetail() {
                     {d.item && <span className="tag ml-auto rounded bg-raised px-1.5 py-0.5 text-xs">{d.item}</span>}
                   </div>
                   <p className="mt-1.5 text-sm text-muted">{d.message}</p>
+                  {rowFor(d.code, d.item)?.fix && (
+                    <div className="mt-2 flex gap-2 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-sm">
+                      <Wrench size={15} className="mt-0.5 shrink-0 text-sky-500" />
+                      <span>{rowFor(d.code, d.item)!.fix}</span>
+                    </div>
+                  )}
                   {proofFor(d.code, d.item) && (
                     <img
                       src={snippetUrl(id, proofFor(d.code, d.item)!.snippet as string)}
@@ -419,6 +427,37 @@ export default function InspectionDetail() {
           )}
         </div>
       </div>
+
+      {/* ---- fix list: how it should be assembled ---- */}
+      {fixes.length > 0 && (
+        <div className="card anim-fade-up mt-6 p-5">
+          <h2 className="flex items-center gap-2 font-semibold">
+            <Wrench size={17} className="text-sky-500" /> How to fix it
+          </h2>
+          <p className="mb-3 text-xs text-muted">
+            What the technician has to do, taken from the drawing and the wire list · click a step to see it on the photo
+          </p>
+          <ol className="space-y-2">
+            {fixes.map((f, n) => (
+              <li
+                key={f.key}
+                onClick={() => togglePin(f.item)}
+                onMouseEnter={() => setHighlight(f.item)}
+                onMouseLeave={() => setHighlight(null)}
+                className={`flex cursor-pointer gap-3 rounded-xl border px-3 py-2.5 text-sm transition-colors ${
+                  pinned === f.item ? "border-sky-500 bg-sky-500/10" : "border-line bg-raised hover:border-sky-400/60"
+                }`}
+              >
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-500 text-xs font-bold text-white">{n + 1}</span>
+                <span className="flex-1">{f.fix}</span>
+                <span className="hidden shrink-0 text-xs text-faint sm:inline">
+                  {f.check_title} · row #{f.no}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
 
       {/* ---- expected vs found ---- */}
       <div className="card mt-6 overflow-hidden">

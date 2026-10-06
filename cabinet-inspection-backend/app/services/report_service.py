@@ -139,7 +139,7 @@ def build_checklist_xlsx(inspection_id: str, cabinet_name: str, result: dict,
         ws.cell(r, 2, v)
 
     headers = ["#", "Check", "Item", "What is checked", "Expected (drawing)", "Found (photo)",
-               "Result", "Severity", "Remark", "Re-check"]
+               "Result", "Severity", "Remark", "How to fix", "Re-check"]
     top = len(meta) + 3
     for c, h in enumerate(headers, start=1):
         cell = ws.cell(top, c, h)
@@ -147,15 +147,16 @@ def build_checklist_xlsx(inspection_id: str, cabinet_name: str, result: dict,
         cell.alignment = Alignment(horizontal="center", vertical="center")
     for r, it in enumerate(result.get("checklist", []), start=top + 1):
         row = [it["no"], it["check_title"], it["item"], it["description"], it["expected"], it["found"],
-               it["result"], (it["severity"] or "").upper(), it["message"], _CHANGE_TEXT.get(it.get("change"), "")]
+               it["result"], (it["severity"] or "").upper(), it["message"], it.get("fix", ""),
+               _CHANGE_TEXT.get(it.get("change"), "")]
         for c, v in enumerate(row, start=1):
             cell = ws.cell(r, c, v)
             cell.border = border
-            cell.alignment = Alignment(vertical="top", wrap_text=c in (4, 9))
+            cell.alignment = Alignment(vertical="top", wrap_text=c in (4, 9, 10))
         ws.cell(r, 7).fill = fills[it["result"]]
         ws.cell(r, 7).font = Font(bold=True)
         ws.cell(r, 7).alignment = Alignment(horizontal="center", vertical="top")
-    for c, width in enumerate([5, 16, 12, 38, 22, 22, 9, 10, 60, 12], start=1):
+    for c, width in enumerate([5, 16, 12, 38, 22, 22, 9, 10, 50, 55, 12], start=1):
         ws.column_dimensions[get_column_letter(c)].width = width
     ws.freeze_panes = ws.cell(top + 1, 1)
 
@@ -173,6 +174,10 @@ def build_checklist_xlsx(inspection_id: str, cabinet_name: str, result: dict,
                                f"Found: {it['found']}", it["message"]], start=1):
             proof.cell(row, c, v).font = Font(bold=c <= 3)
         row += 1
+        if it.get("fix"):
+            proof.cell(row, 2, "How to fix").font = Font(bold=True, color="1565C0")
+            proof.cell(row, 3, it["fix"])
+            row += 1
         path = snippet_dir / it["snippet"] if it.get("snippet") else None
         if path and path.is_file():
             try:
@@ -265,6 +270,15 @@ def build_pdf_report(inspection_id: str, cabinet_name: str, result: dict,
             story.append(Paragraph(f"<b>{title} ({len(rows)}):</b> {names}", styles["BodyText"]))
         story.append(Spacer(1, 12))
 
+    # ---- fix list: how it should be assembled ------------------------------
+    to_fix = [i for i in checklist if i["result"] == "FAIL" and i.get("fix")]
+    if to_fix:
+        story.append(Paragraph("Fix list - what the technician has to do", styles["Heading2"]))
+        for n, it in enumerate(to_fix, 1):
+            story.append(Paragraph(f"<b>{n}.</b> {it['fix']} <font color='#757575'>(row #{it['no']}, "
+                                   f"{it['check_title']})</font>", styles["BodyText"]))
+        story.append(Spacer(1, 12))
+
     # ---- QC check sheet ----------------------------------------------------
     story.append(Paragraph("QC check sheet", styles["Heading2"]))
     if checklist:
@@ -299,6 +313,7 @@ def build_pdf_report(inspection_id: str, cabinet_name: str, result: dict,
                 f'<b>#{it["no"]} {it["check_title"]} - {it["item"]}</b> '
                 f'<font color="{_SEV_HEX[sev]}">[{it["result"]} / {sev.upper()}]</font><br/>'
                 f'<b>Expected:</b> {it["expected"]}<br/><b>Found:</b> {it["found"]}<br/>{it["message"]}'
+                + (f'<br/><font color="#1565c0"><b>How to fix:</b> {it["fix"]}</font>' if it.get("fix") else "")
                 + ("<br/><i>Box = the place where it was expected.</i>" if it["bbox_estimated"] else ""), small)
             path = snippet_dir / it["snippet"] if snippet_dir and it.get("snippet") else None
             picture = _fit_image(path, 60 * mm, 42 * mm) if path and path.is_file() else Paragraph("no photo location", small)

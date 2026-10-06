@@ -59,6 +59,7 @@ export interface ChecklistItem {
   severity: Severity | null;
   code: string | null;
   message: string;
+  fix?: string; // how it should be assembled (empty for PASS; absent on older inspections)
   bbox: BBox | null;
   bbox_estimated: boolean; // true = "the place where it was expected" (item is missing)
   snippet: string | null; // file name of the zoomed proof picture

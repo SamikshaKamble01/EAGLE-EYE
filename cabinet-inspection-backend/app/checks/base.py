@@ -11,10 +11,13 @@ check sheet. To add a check, drop a new file here - nothing else changes:
         ok = any(t["text"] == "PE" for t in ctx.ocr["texts"])
         return [item("PE", "Earth bar label present", "PE", "PE" if ok else "Not found", ok,
                      severity="major", code="EARTH_LABEL_MISSING",
-                     message="Earth bar label 'PE' was not found.")]
+                     message="Earth bar label 'PE' was not found.",
+                     fix="Fit a 'PE' label on the earth bar.")]
 
 Each check returns a list of check-sheet items (see `item`). An item is PASS,
-FAIL, or WARN (a note that does not fail the cabinet).
+FAIL, or WARN (a note that does not fail the cabinet). `fix` tells the
+technician how it should be assembled; write it only from what the drawing and
+wire list say.
 """
 import logging
 from dataclasses import dataclass
@@ -63,7 +66,7 @@ class CheckContext:
 
 def item(name, description: str, expected, found, ok: bool, *, severity: str = "major",
          code: str | None = None, message: str = "", bbox=None, estimated: bool = False,
-         warn: bool = False, key: str | None = None) -> dict:
+         warn: bool = False, key: str | None = None, fix: str = "") -> dict:
     """One row of the check sheet."""
     return {
         "key": key or str(name),
@@ -75,6 +78,7 @@ def item(name, description: str, expected, found, ok: bool, *, severity: str = "
         "severity": None if ok else severity,
         "code": None if ok else code,
         "message": "" if ok else message,
+        "fix": "" if ok else fix,                 # how it should be assembled
         "bbox": [int(v) for v in bbox] if bbox else None,
         "bbox_estimated": bool(estimated and bbox),
     }
@@ -83,6 +87,22 @@ def item(name, description: str, expected, found, ok: bool, *, severity: str = "
 # --------------------------------------------------------------------------- #
 # "where should it have been?" - proof box for things that are missing
 # --------------------------------------------------------------------------- #
+def neighbours(names: list[str], index: int, present: set[str]) -> tuple[str | None, str | None]:
+    """Nearest items before / after names[index] that are actually in the photo."""
+    before = next((n for n in reversed(names[:index]) if n in present), None)
+    after = next((n for n in names[index + 1:] if n in present), None)
+    return before, after
+
+
+def place(before: str | None, after: str | None) -> str:
+    """'between K1 and F1' / 'next to K1' / '' - for fix instructions."""
+    if before and after:
+        return f"between {before} and {after}"
+    if before or after:
+        return f"next to {before or after}"
+    return ""
+
+
 def estimate_gap(ordered: list[tuple[str, list | None]], index: int, image_size=None):
     """Box of the empty place where ordered[index] was expected: the gap between
     its nearest located neighbours (same row), else the spot next to one of them."""
@@ -151,6 +171,10 @@ def apply_to_result(result: dict, sheet: list[dict]) -> None:
     result["summary"].update(counts, checks_total=passed + failed, checks_passed=passed)
     result["score"] = round(100.0 * passed / (passed + failed), 1) if passed + failed else 0.0
     result["verdict"] = "FAIL" if counts["critical"] or counts["major"] else "PASS"
+    _attach(result, sheet)
+
+
+def _attach(result: dict, sheet: list[dict]) -> None:
     result["checklist"] = sheet
     result["checks"] = [
         {"id": c["id"], "title": c["title"], "kind": c["kind"],
@@ -159,6 +183,13 @@ def apply_to_result(result: dict, sheet: list[dict]) -> None:
          "warnings": sum(i["check"] == c["id"] and i["result"] == "WARN" for i in sheet)}
         for c in registered()
     ]
+
+
+def ensure_sheet(result: dict) -> None:
+    """Inspections saved before the check sheet existed get one built from their stored
+    result when they are opened (verdict and score stay as saved; no proof snippets)."""
+    if "checklist" not in result and "components" in result:
+        _attach(result, run_all(context_from_result(result)))
 
 
 def context_from_result(result: dict) -> CheckContext:

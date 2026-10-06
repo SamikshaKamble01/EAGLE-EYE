@@ -1,7 +1,7 @@
 """GA check: every part of the drawing is present, of the right kind, and in the right order."""
 from statistics import median
 
-from app.checks.base import CheckContext, estimate_gap, item, register
+from app.checks.base import CheckContext, estimate_gap, item, neighbours, place, register
 from app.utils.text import tag_prefix
 
 _PRESENT = {"ok", "label_mismatch", "label_missing"}
@@ -59,7 +59,8 @@ def _order_item(located: list[dict]) -> dict:
     tags = ", ".join(sorted(d["tag"] for d in moved))
     return item("Device order", "Devices are in the order of the drawing", expected or "-", found or "-",
                 not moved, severity="major", code="COMPONENT_ORDER", bbox=box, key="order",
-                message=f"{tags} {'is' if len(moved) == 1 else 'are'} not in the order shown in the drawing.")
+                message=f"{tags} {'is' if len(moved) == 1 else 'are'} not in the order shown in the drawing.",
+                fix=f"Move {tags} so the devices read {expected} from left to right.")
 
 
 @register("ga", "GA check", order=10)
@@ -68,22 +69,29 @@ def run(ctx: CheckContext) -> list[dict]:
     boxes = [(c["tag"], ctx.device_box(c.get("bbox"))) for c in checks]
     items: list[dict] = []
     located: list[dict] = []
+    tags = [c["tag"] for c in checks]
+    present = {c["tag"] for c in checks if c["status"] != "missing"}
 
     for index, c in enumerate(checks):
         tag, status, box = c["tag"], c["status"], boxes[index][1]
         what = f"{_nice(c['type']).capitalize()} {tag} is installed"
+        part = f"{_nice(c['type'])} {tag}" + (f" ({c['description']})" if c.get("description") else "")
         if status in _PRESENT:
             items.append(item(tag, what, "Present", "Present", True, bbox=box))
         elif status == "type_mismatch":
             d = ctx.defect("COMPONENT_TYPE_MISMATCH", tag) or {}
             items.append(item(tag, what, _nice(c["type"]), _nice(c.get("detected_type")), False,
                               severity="critical", code="COMPONENT_TYPE_MISMATCH",
-                              message=d.get("message", f"{tag} is the wrong kind of device."), bbox=box))
+                              message=d.get("message", f"{tag} is the wrong kind of device."), bbox=box,
+                              fix=f"Replace the {_nice(c.get('detected_type'))} at this position with the {part}."))
         else:
             d = ctx.defect("COMPONENT_MISSING", tag) or {}
+            where = place(*neighbours(tags, index, present))
             items.append(item(tag, what, "Present", "Missing", False, severity="critical",
                               code="COMPONENT_MISSING", message=d.get("message", f"{tag} was not found."),
-                              bbox=estimate_gap(boxes, index, ctx.image_size), estimated=True))
+                              bbox=estimate_gap(boxes, index, ctx.image_size), estimated=True,
+                              fix=f"Install the {part}" + (f" {where}" if where else "")
+                                  + f" and label it {tag}. If it is already there, make its label visible."))
         if box and status != "missing":
             located.append({"tag": tag, "index": index, "prefix": tag_prefix(tag), "box": box,
                             "cx": (box[0] + box[2]) / 2, "cy": (box[1] + box[3]) / 2})
@@ -93,7 +101,10 @@ def run(ctx: CheckContext) -> list[dict]:
         if d["code"] in ("COMPONENT_COUNT_SHORT", "EXTRA_COMPONENT"):
             items.append(item(_nice(d["item"]), f"Number of {_nice(d['item'])}s", d["expected"], d["actual"], False,
                               severity=d["severity"], code=d["code"], message=d["message"],
-                              key=f"count:{d['item']}"))
+                              key=f"count:{d['item']}",
+                              fix=(f"Install the missing {_nice(d['item'])}(s): the drawing needs {d['expected']}."
+                                   if d["code"] == "COMPONENT_COUNT_SHORT" else
+                                   f"Remove the surplus {_nice(d['item'])}(s): the drawing lists only {d['expected']}.")))
 
     if len(located) > 1:
         items.append(_order_item(located))

@@ -3,8 +3,8 @@ check file registers itself - see app/checks/base.py for how to write one."""
 import importlib
 import pkgutil
 
-from app.checks.base import (CheckContext, apply_to_result, compare, item, register,  # noqa: F401
-                             registered, run_all, sheet_of)
+from app.checks.base import (CheckContext, apply_to_result, compare, ensure_sheet, item,  # noqa: F401
+                             register, registered, run_all, sheet_of)
 
 for _module in pkgutil.iter_modules(__path__):
     if _module.name != "base":

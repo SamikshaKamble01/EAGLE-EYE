@@ -71,6 +71,15 @@ class CheckSheetApiTests(_Base):
             snippet.close()
         self.assertEqual(self.client.get(f"/api/inspections/{body['id']}/snippets/../x.png").status_code, 404)
 
+    def test_every_fail_says_how_to_fix_it(self):
+        sheet = self.upload(image="bad.png").get_json()["result"]["checklist"]
+        fix = {i["key"]: i["fix"] for i in sheet}
+        self.assertIn("Install the contactor K2", fix["ga:K2"])
+        self.assertIn("between K1 and F1", fix["ga:K2"])
+        self.assertEqual(fix["label:K1"], "Replace the label 'K7' on this contactor with 'K1'.")
+        self.assertIn("Fit ferrule '105' on the wire A1:Q0 -> K1:A1", fix["ferrule:105"])
+        self.assertTrue(all(i["fix"] == "" for i in sheet if i["result"] == "PASS"))
+
     def test_checklist_excel_download(self):
         body = self.upload().get_json()
         r = self.client.get(f"/api/inspections/{body['id']}/checklist.xlsx")

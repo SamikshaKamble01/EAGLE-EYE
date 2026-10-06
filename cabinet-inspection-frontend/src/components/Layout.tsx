@@ -30,18 +30,18 @@ export default function Layout() {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
       isActive
-        ? "bg-linear-to-r from-sky-500/25 to-indigo-500/10 text-white shadow-inner shadow-sky-500/10 ring-1 ring-sky-400/30"
-        : "text-slate-300 hover:bg-white/5 hover:text-white"
+        ? "bg-linear-to-r from-sky-500/20 to-indigo-500/10 text-sky-700 ring-1 ring-sky-500/30 dark:text-white dark:ring-sky-400/30"
+        : "text-muted hover:bg-raised hover:text-ink"
     }`;
 
   return (
     <div className="flex min-h-full flex-col md:flex-row">
-      <aside className="flex shrink-0 flex-col gap-6 border-r border-white/5 bg-linear-to-b from-slate-900 to-slate-950 p-4 md:sticky md:top-0 md:h-screen md:w-60">
+      <aside className="flex shrink-0 flex-col gap-6 border-b border-line bg-surface p-4 md:border-b-0 md:border-r dark:bg-linear-to-b dark:from-slate-900 dark:to-slate-950 md:sticky md:top-0 md:h-screen md:w-60">
         <div className="flex items-center gap-2.5 px-1">
           <img src="/favicon.svg" alt="" className="h-9 w-9 rounded-lg shadow-lg shadow-sky-500/20" />
           <div>
-            <div className="text-sm font-bold leading-tight text-white">Eagle-Eye</div>
-            <div className="text-[11px] text-slate-400">Expected vs actual</div>
+            <div className="text-sm font-bold leading-tight text-ink">Eagle-Eye</div>
+            <div className="text-[11px] text-muted">Expected vs actual</div>
           </div>
         </div>
         <nav className="flex gap-1 md:flex-col">

@@ -16,19 +16,17 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { data, loading, error, reload } = useApi(() => getStats(), []);
   const { data: list, reload: reloadList } = useApi(() => listInspections({ limit: TREND_POINTS }), []);
-  const [live, setLive] = useState(true);
   const [scoresOpen, setScoresOpen] = useState(false);
 
-  // live mode: re-fetch quietly so new inspections appear without pressing F5
+  // re-fetch quietly so new inspections appear without pressing F5
   useEffect(() => {
-    if (!live) return;
     const t = setInterval(() => {
       if (document.hidden) return;
       reload();
       reloadList();
     }, REFRESH_MS);
     return () => clearInterval(t);
-  }, [live, reload, reloadList]);
+  }, [reload, reloadList]);
 
   const trend = useMemo<TrendPoint[]>(
     () =>
@@ -80,17 +78,6 @@ export default function Dashboard() {
         subtitle="Quality overview of all cabinet inspections"
         actions={
           <>
-            <button
-              onClick={() => setLive((v) => !v)}
-              title={live ? "Auto-refresh every 10 seconds is on" : "Auto-refresh is off"}
-              className={`btn px-3 ${live ? "border border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "btn-ghost"}`}
-            >
-              <span className="relative flex h-2 w-2">
-                {live && <span className="ping-soft absolute inline-flex h-full w-full rounded-full bg-emerald-500" />}
-                <span className={`relative inline-flex h-2 w-2 rounded-full ${live ? "bg-emerald-500" : "bg-slate-400"}`} />
-              </span>
-              Live
-            </button>
             <button
               className="btn btn-ghost px-3"
               title="Refresh now"

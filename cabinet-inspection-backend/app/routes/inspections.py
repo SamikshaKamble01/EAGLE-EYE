@@ -6,7 +6,7 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, request, send_file, url_for
 
-from app import db
+from app import checks, db
 from app.errors import AppError, NotFound, ValidationError
 from app.services.inspection_pipeline import run_inspection
 from app.utils.files import save_upload, validate_upload
@@ -36,6 +36,8 @@ def _load(inspection_id: str, include_details: bool = True):
     data, row = db.get_inspection(inspection_id, include_details)
     if data is None:
         raise NotFound("Inspection not found.")
+    if include_details and data.get("result"):
+        checks.ensure_sheet(data["result"])       # older inspections: build the check sheet on the fly
     return data, row
 
 
