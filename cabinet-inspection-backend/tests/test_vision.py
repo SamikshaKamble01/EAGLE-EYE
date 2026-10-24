@@ -87,7 +87,8 @@ class ClassTests(unittest.TestCase):
             self.assertEqual(V.component_type(name), expected, name)
 
     def test_everyday_object_classes_are_ignored(self):
-        for name in ("person", "car", "bottle", "tv"):
+        # 'parking meter' and 'traffic light' used to be mistaken for an energy meter / lamp
+        for name in ("person", "car", "bottle", "tv", "parking meter", "traffic light", "remote", "stop sign"):
             self.assertIsNone(V.component_type(name))
 
     def test_custom_class_map(self):

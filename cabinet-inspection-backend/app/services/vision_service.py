@@ -18,21 +18,18 @@ are never invented.
 Each detection: {"type", "class_name", "confidence", "bbox": [x1,y1,x2,y2]}  (photo pixels)
 """
 import logging
+import re
 from functools import lru_cache
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-from app.utils.text import canonical_type
-
 log = logging.getLogger(__name__)
 
 # the component classes the detector pipeline is prepared for (custom weights can add more)
 COMPONENT_CLASSES = ("circuit_breaker", "contactor", "relay", "terminal_block", "fuse",
                      "switch", "indicator_lamp", "label")
-# other cabinet devices a custom model may also know; kept as typed detections
-_OTHER_DEVICE_TYPES = {"power_supply", "plc", "vfd", "timer", "transformer", "energy_meter", "surge_protector"}
 
 
 # --------------------------------------------------------------------------- #
@@ -49,24 +46,35 @@ def parse_class_map(text: str | None) -> dict[str, str]:
     return out
 
 
+# Fixed vocabulary of cabinet-component terms. A model class counts only when one of these
+# terms appears in its name as a WHOLE word / phrase - so 'parking meter' or 'traffic light'
+# from everyday-object weights can never be taken for a cabinet device.
+_VOCABULARY: list[tuple[str, str]] = sorted([
+    ("circuit breaker", "circuit_breaker"), ("breaker", "circuit_breaker"), ("mcb", "circuit_breaker"),
+    ("mccb", "circuit_breaker"), ("rccb", "circuit_breaker"), ("rcbo", "circuit_breaker"), ("isolator", "circuit_breaker"),
+    ("contactor", "contactor"), ("relay", "relay"), ("overload relay", "relay"), ("timer relay", "relay"),
+    ("terminal block", "terminal_block"), ("terminal", "terminal_block"), ("terminals", "terminal_block"),
+    ("fuse", "fuse"), ("fuse holder", "fuse"),
+    ("switch", "switch"), ("selector switch", "switch"), ("push button", "switch"), ("pushbutton", "switch"),
+    ("indicator lamp", "indicator_lamp"), ("indicator", "indicator_lamp"), ("pilot lamp", "indicator_lamp"),
+    ("pilot light", "indicator_lamp"), ("signal lamp", "indicator_lamp"),
+    ("label", "label"), ("tag", "label"), ("marker", "label"), ("nameplate", "label"), ("ferrule", "label"),
+    ("power supply", "power_supply"), ("psu", "power_supply"), ("plc", "plc"), ("vfd", "vfd"),
+    ("energy meter", "energy_meter"), ("surge protector", "surge_protector"), ("spd", "surge_protector"),
+    ("transformer", "transformer"),
+], key=lambda v: -len(v[0]))          # longest phrase first ("overload relay" before "relay")
+
+
 def component_type(class_name: str, class_map: dict[str, str] | None = None) -> str | None:
     """Model class name -> component type, or None when it is not a cabinet component
-    (e.g. 'person' or 'car' from COCO weights)."""
+    (e.g. 'person', 'car' or 'parking meter' from COCO weights)."""
     name = (class_name or "").strip().lower()
     if class_map and name in class_map:
         return class_map[name]
-    words = name.replace("_", " ").replace("-", " ")
-    if any(w in words for w in ("label", "tag", "marker", "nameplate", "ferrule")):
-        return "label"
-    if any(w in words for w in ("switch", "selector", "push button", "pushbutton")):
-        return "switch"
-    ctype = canonical_type(words)
-    if ctype == "overload_relay":
-        return "relay"
-    if ctype == "push_button":
-        return "switch"
-    if ctype in COMPONENT_CLASSES or ctype in _OTHER_DEVICE_TYPES:
-        return ctype
+    words = " " + re.sub(r"[^a-z0-9]+", " ", name).strip() + " "
+    for phrase, ctype in _VOCABULARY:
+        if f" {phrase} " in words:
+            return ctype
     return None
 
 
