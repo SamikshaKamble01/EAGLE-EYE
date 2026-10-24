@@ -76,7 +76,8 @@ def init_db(app):
 def _migrate(db: sqlite3.Connection) -> None:
     """Add columns introduced after the first version (keeps existing data)."""
     have = {r["name"] for r in db.execute("PRAGMA table_info(inspections)")}
-    for name, ddl in (("parent_id", "TEXT"), ("root_id", "TEXT"), ("round", "INTEGER NOT NULL DEFAULT 1")):
+    for name, ddl in (("parent_id", "TEXT"), ("root_id", "TEXT"), ("round", "INTEGER NOT NULL DEFAULT 1"),
+                      ("image_paths", "TEXT"), ("annotated_paths", "TEXT")):
         if name not in have:
             db.execute(f"ALTER TABLE inspections ADD COLUMN {name} {ddl}")
     db.execute("CREATE INDEX IF NOT EXISTS idx_inspections_root ON inspections(root_id)")
@@ -97,22 +98,25 @@ def create_inspection(inspection_id: str, cabinet_name: str, paths: dict,
                                     image_path, pdf_path, excel_path, parent_id, root_id, round)
            VALUES (?, ?, 'processing', ?, ?, ?, ?, ?, ?, ?)""",
         (inspection_id, datetime.now(timezone.utc).isoformat(), cabinet_name,
-         str(paths["image"]), str(paths["pdf"]), str(paths["excel"]),
+         str(paths["image"]), str(paths["pdf"]), str(paths["excel"]) if paths.get("excel") else None,
          parent_id, root_id or inspection_id, round_no),
     )
     db.commit()
 
 
-def complete_inspection(inspection_id: str, result: dict, annotated_path, report_path) -> None:
+def complete_inspection(inspection_id: str, result: dict, annotated_path, report_path,
+                        image_paths=None, annotated_paths=None) -> None:
     db = get_db()
     db.execute(
         """UPDATE inspections
               SET status='completed', verdict=?, score=?, summary_json=?,
-                  annotated_path=?, report_path=?
+                  annotated_path=?, report_path=?, image_paths=?, annotated_paths=?
             WHERE id=?""",
         (result["verdict"], result["score"], json.dumps(result),
          str(annotated_path) if annotated_path else None,
-         str(report_path) if report_path else None, inspection_id),
+         str(report_path) if report_path else None,
+         json.dumps([str(p) for p in image_paths]) if image_paths else None,
+         json.dumps([str(p) for p in annotated_paths]) if annotated_paths else None, inspection_id),
     )
     db.executemany(
         """INSERT INTO defects (inspection_id, code, severity, item, expected, actual, message)
@@ -165,6 +169,15 @@ def list_inspections(limit: int = 50, offset: int = 0, verdict: str | None = Non
         [verdict.upper()] if verdict else [],
     ).fetchone()[0]
     return [_row_to_dict(r, False) for r in rows], total
+
+
+def photo_paths(row, kind: str = "image") -> list[str]:
+    """All uploaded photos (kind="image") or marked-up photos (kind="annotated") of an inspection."""
+    stored = row[f"{kind}_paths"] if f"{kind}_paths" in row.keys() else None
+    if stored:
+        return json.loads(stored)
+    single = row[f"{kind}_path"]
+    return [single] if single else []
 
 
 def list_chain(inspection_id: str) -> list[dict]:

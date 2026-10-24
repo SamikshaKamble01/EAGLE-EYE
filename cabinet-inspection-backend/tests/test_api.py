@@ -114,9 +114,31 @@ class ApiTests(_Base):
         self.assertEqual(self.client.get(f"/api/inspections/{created['id']}").status_code, 404)
 
     def test_missing_file_is_400(self):
-        r = self.upload(excel=None)
+        r = self.upload(pdf=None)
         self.assertEqual(r.status_code, 400)
         self.assertEqual(r.get_json()["error"], "validation_error")
+        self.assertEqual(self.upload(image=None).status_code, 400)
+
+    def test_wire_list_is_optional(self):
+        r = self.upload(excel=None)
+        self.assertEqual(r.status_code, 201)
+        body = r.get_json()
+        self.assertEqual(body["result"]["wire_labels"], [])
+        self.assertFalse(any(i["check"] == "ferrule" for i in body["result"]["checklist"]))
+
+    def test_several_photos(self):
+        data = {"pdf": (io.BytesIO((self.tmp / "bom.pdf").read_bytes()), "bom.pdf"),
+                "excel": (io.BytesIO((self.tmp / "wiring.xlsx").read_bytes()), "wiring.xlsx"),
+                "image": [(io.BytesIO((self.tmp / n).read_bytes()), n) for n in ("bad.png", "good.png")]}
+        r = self.client.post("/api/inspections", data=data, content_type="multipart/form-data")
+        self.assertEqual(r.status_code, 201)
+        body = r.get_json()
+        self.assertEqual(len(body["result"]["photos"]), 2)
+        # the second photo shows everything, so nothing is missing any more
+        self.assertEqual(body["verdict"], "PASS")
+        second = self.client.get(f"/api/inspections/{body['id']}/image?photo=1")
+        self.assertEqual(second.status_code, 200)
+        second.close()
 
     def test_wrong_file_type_is_400(self):
         r = self.upload(pdf="wiring.xlsx")   # xlsx sent as the pdf

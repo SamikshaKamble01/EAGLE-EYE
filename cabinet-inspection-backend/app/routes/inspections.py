@@ -48,23 +48,40 @@ def _send_existing(path_str: str | None, mimetype: str, download_name: str, as_a
 
 
 # --------------------------------------------------------------------------- #
+MAX_PHOTOS = 10
+
+
+def _save_photos(job_dir: Path) -> list[Path]:
+    """One or more `image` fields (several photos of the same cabinet)."""
+    cfg = current_app.config
+    photos = [f for f in request.files.getlist("image") if f and f.filename]
+    if not photos:
+        validate_upload(None, "image", cfg["ALLOWED_IMAGE_EXT"])        # raises "Missing file field 'image'"
+    if len(photos) > MAX_PHOTOS:
+        raise ValidationError(f"At most {MAX_PHOTOS} photos per inspection.")
+    exts = [validate_upload(f, "image", cfg["ALLOWED_IMAGE_EXT"]) for f in photos]
+    return [save_upload(f, job_dir / "uploads", f"image{n + 1}" if len(photos) > 1 else "image", ext)
+            for n, (f, ext) in enumerate(zip(photos, exts))]
+
+
 @bp.post("/inspections")
 def create():
-    """multipart/form-data: image, pdf, excel (+ optional cabinet_name)."""
+    """multipart/form-data: image (one or several photos), pdf, optional excel (+ optional cabinet_name)."""
     cfg = current_app.config
     files = request.files
-    exts = {
-        "image": validate_upload(files.get("image"), "image", cfg["ALLOWED_IMAGE_EXT"]),
-        "pdf": validate_upload(files.get("pdf"), "pdf", cfg["ALLOWED_PDF_EXT"]),
-        "excel": validate_upload(files.get("excel"), "excel", cfg["ALLOWED_EXCEL_EXT"]),
-    }
+    pdf_ext = validate_upload(files.get("pdf"), "pdf", cfg["ALLOWED_PDF_EXT"])
+    has_excel = bool(files.get("excel") and files["excel"].filename)
+    excel_ext = validate_upload(files.get("excel"), "excel", cfg["ALLOWED_EXCEL_EXT"]) if has_excel else None
     cabinet_name = (request.form.get("cabinet_name") or "").strip()[:120]
     if len(cabinet_name) > 0 and not re.match(r"^[\w\s\-./#()]+$", cabinet_name):
         raise ValidationError("cabinet_name contains invalid characters.")
 
     inspection_id = db.new_id()
     job_dir = cfg["STORAGE_DIR"] / "inspections" / inspection_id
-    paths = {k: save_upload(files[k], job_dir / "uploads", k, ext) for k, ext in exts.items()}
+    images = _save_photos(job_dir)
+    paths = {"image": images[0], "images": images,
+             "pdf": save_upload(files["pdf"], job_dir / "uploads", "pdf", pdf_ext),
+             "excel": save_upload(files["excel"], job_dir / "uploads", "excel", excel_ext) if has_excel else None}
     db.create_inspection(inspection_id, cabinet_name, paths)
     return _run_and_respond(inspection_id, cabinet_name, paths, job_dir)
 
@@ -82,7 +99,8 @@ def _run_and_respond(inspection_id, cabinet_name, paths, job_dir, previous=None,
         db.fail_inspection(inspection_id, f"Internal error: {exc}")
         raise
 
-    db.complete_inspection(inspection_id, out["result"], out["annotated_path"], out["report_path"])
+    db.complete_inspection(inspection_id, out["result"], out["annotated_path"], out["report_path"],
+                           out.get("image_paths"), out.get("annotated_paths"))
     data, _ = _load(inspection_id)
     data["links"] = _links(inspection_id)
     return jsonify(data), 201
@@ -90,24 +108,25 @@ def _run_and_respond(inspection_id, cabinet_name, paths, job_dir, previous=None,
 
 @bp.post("/inspections/<inspection_id>/recheck")
 def recheck(inspection_id):
-    """After a fix: multipart/form-data with a new `image`. The drawing and wire
-    list of the earlier inspection are reused; the answer says which issues are
+    """After a fix: multipart/form-data with one or more new `image` photos. The drawing
+    and wire list of the earlier inspection are reused; the answer says which issues are
     now closed, which are still open and which are new."""
     cfg = current_app.config
     parent, row = _load(inspection_id)
     if parent["status"] != "completed" or "result" not in parent:
         raise ValidationError("Only a completed inspection can be re-checked.")
-    for key in ("pdf_path", "excel_path"):
-        if not row[key] or not Path(row[key]).is_file():
-            raise NotFound("The drawing / wire list of this inspection is no longer stored.")
-    ext = validate_upload(request.files.get("image"), "image", cfg["ALLOWED_IMAGE_EXT"])
+    if not row["pdf_path"] or not Path(row["pdf_path"]).is_file() or \
+            (row["excel_path"] and not Path(row["excel_path"]).is_file()):
+        raise NotFound("The drawing / wire list of this inspection is no longer stored.")
 
     new_id = db.new_id()
     job_dir = cfg["STORAGE_DIR"] / "inspections" / new_id
     uploads = job_dir / "uploads"
-    paths = {"image": save_upload(request.files["image"], uploads, "image", ext)}
+    images = _save_photos(job_dir)
+    paths = {"image": images[0], "images": images, "excel": None}
     for key in ("pdf", "excel"):                       # own copies, so deleting one never breaks the other
-        paths[key] = Path(shutil.copy2(row[f"{key}_path"], uploads / Path(row[f"{key}_path"]).name))
+        if row[f"{key}_path"]:
+            paths[key] = Path(shutil.copy2(row[f"{key}_path"], uploads / Path(row[f"{key}_path"]).name))
     round_no = (row["round"] or 1) + 1
     cabinet_name = parent["cabinet_name"] or ""
     db.create_inspection(new_id, cabinet_name, paths, parent_id=inspection_id,
@@ -182,16 +201,27 @@ def get_report(inspection_id):
                           f"inspection_{inspection_id[:8]}.pdf", as_attachment=download)
 
 
+def _photo_arg() -> int:
+    try:
+        return max(0, int(request.args.get("photo", 0)))
+    except ValueError:
+        raise ValidationError("photo must be a number.")
+
+
 @bp.get("/inspections/<inspection_id>/annotated-image")
 def get_annotated(inspection_id):
+    """?photo=N (0-based) picks one of several photos."""
     _, row = _load(inspection_id, include_details=False)
-    return _send_existing(row["annotated_path"], "image/png", f"annotated_{inspection_id[:8]}.png")
+    marked, n = db.photo_paths(row, "annotated"), _photo_arg()
+    return _send_existing(marked[n] if n < len(marked) else None, "image/png", f"annotated_{inspection_id[:8]}_{n + 1}.png")
 
 
 @bp.get("/inspections/<inspection_id>/image")
 def get_original(inspection_id):
+    """?photo=N (0-based) picks one of several photos."""
     _, row = _load(inspection_id, include_details=False)
-    path = row["image_path"]
+    photos, n = db.photo_paths(row, "image"), _photo_arg()
+    path = photos[n] if n < len(photos) else None
     mime = "image/png" if path and path.lower().endswith(".png") else "image/jpeg"
     return _send_existing(path, mime, Path(path).name if path else "image")
 

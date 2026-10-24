@@ -4,6 +4,7 @@ import { FileSpreadsheet, FileText, Image as ImageIcon, LoaderCircle, RotateCcw,
 import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useFeedback } from "../components/Feedback";
+import { CameraButton } from "../components/CameraCapture";
 import FileDrop from "../components/FileDrop";
 import { PageHeader } from "../components/ui";
 import { ApiError, createInspection } from "../lib/api";
@@ -23,12 +24,14 @@ const IMAGE_EXT = [".jpg", ".jpeg", ".png", ".bmp", ".webp"];
 const PDF_EXT = [".pdf"];
 const EXCEL_EXT = [".xlsx", ".xls", ".csv"];
 
+const MAX_PHOTOS = 10;
+
 const extension = (f: File) => "." + (f.name.split(".").pop() ?? "").toLowerCase();
 
 export default function NewInspection() {
   const navigate = useNavigate();
   const { toast } = useFeedback();
-  const [image, setImage] = useState<File | null>(null);
+  const [images, setImages] = useState<File[]>([]);
   const [pdf, setPdf] = useState<File | null>(null);
   const [excel, setExcel] = useState<File | null>(null);
   const [cabinetName, setCabinetName] = useState("");
@@ -41,8 +44,9 @@ export default function NewInspection() {
   const dragDepth = useRef(0);
 
   const busy = phase !== "idle";
-  const filesReady = [image, pdf, excel].filter(Boolean).length;
-  const ready = filesReady === 3 && !busy;
+  // photos and drawing are required, the wire list is optional
+  const filesReady = [images.length > 0, pdf].filter(Boolean).length;
+  const ready = filesReady === 2 && !busy;
 
   // seconds counter while the backend works
   useEffect(() => {
@@ -53,24 +57,26 @@ export default function NewInspection() {
   }, [phase]);
 
   // big photo preview for the "analysing" panel
+  const firstPhoto = images[0] ?? null;
   useEffect(() => {
-    if (!image) {
+    if (!firstPhoto) {
       setPreview(null);
       return;
     }
-    const url = URL.createObjectURL(image);
+    const url = URL.createObjectURL(firstPhoto);
     setPreview(url);
     return () => URL.revokeObjectURL(url);
-  }, [image]);
+  }, [firstPhoto]);
 
   /** Put each file in the right slot by its extension. */
   const sortFiles = useCallback(
     (files: File[]) => {
       let placed = 0;
       const ignored: string[] = [];
+      const photos: File[] = [];
       for (const f of files) {
         const ext = extension(f);
-        if (IMAGE_EXT.includes(ext)) setImage(f);
+        if (IMAGE_EXT.includes(ext)) photos.push(f);
         else if (PDF_EXT.includes(ext)) setPdf(f);
         else if (EXCEL_EXT.includes(ext)) setExcel(f);
         else {
@@ -79,6 +85,8 @@ export default function NewInspection() {
         }
         placed++;
       }
+      if (photos.length)
+        setImages((prev) => [...prev, ...photos.filter((f) => !prev.some((g) => g.name === f.name && g.size === f.size))].slice(0, MAX_PHOTOS));
       if (placed) toast(`Added ${placed} file${placed === 1 ? "" : "s"}`, "success");
       if (ignored.length) toast(`Not a supported file type: ${ignored.join(", ")}`, "error");
     },
@@ -107,12 +115,12 @@ export default function NewInspection() {
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!image || !pdf || !excel) return;
+    if (!images.length || !pdf) return;
     setError(null);
     setUploadPct(0);
     setPhase("uploading");
     try {
-      const result = await createInspection({ image, pdf, excel, cabinetName: cabinetName.trim() || undefined }, (pct) => {
+      const result = await createInspection({ images, pdf, excel, cabinetName: cabinetName.trim() || undefined }, (pct) => {
         setUploadPct(pct);
         if (pct >= 100) setPhase("processing");
       });
@@ -125,7 +133,7 @@ export default function NewInspection() {
   }
 
   function reset() {
-    setImage(null);
+    setImages([]);
     setPdf(null);
     setExcel(null);
     setCabinetName("");
@@ -157,7 +165,7 @@ export default function NewInspection() {
     >
       <PageHeader
         title="New inspection"
-        subtitle="Upload the cabinet photo together with its drawing PDF and wiring list. The backend compares what should be there with what is actually there."
+        subtitle="Upload one or more photos of the cabinet with its drawing PDF (and the wiring list, if you have one). The backend compares what should be there with what is actually there."
         actions={
           filesReady > 0 &&
           !busy && (
@@ -172,30 +180,34 @@ export default function NewInspection() {
       <div className="mb-5 flex items-center gap-3">
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-line">
           <div
-            className="h-full rounded-full bg-linear-to-r from-sky-500 to-emerald-500 transition-all duration-500"
-            style={{ width: `${(filesReady / 3) * 100}%` }}
+            className={`h-full rounded-full transition-all duration-500 ${filesReady === 2 ? "bg-emerald-500" : "bg-sky-600 dark:bg-sky-500"}`}
+            style={{ width: `${(filesReady / 2) * 100}%` }}
           />
         </div>
-        <span className="text-xs font-semibold tabular-nums text-muted">{filesReady} of 3 files ready</span>
+        <span className="text-xs font-semibold tabular-nums text-muted">
+          {filesReady} of 2 required ready{excel ? " · wire list added" : ""}
+        </span>
       </div>
 
       <form onSubmit={submit} className="space-y-6">
-        <div className="stagger grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-3">
           <FileDrop
             step={1}
-            label="Cabinet photo"
-            hint="JPG or PNG, straight-on, labels sharp"
+            label="Cabinet photos"
+            hint="One or more photos (front, rear, close-ups) - straight-on, labels sharp"
             accept={IMAGE_EXT.join(",")}
             icon={ImageIcon}
-            file={image}
-            onChange={setImage}
+            multiple
+            maxFiles={MAX_PHOTOS}
+            files={images}
+            onFilesChange={setImages}
             showPreview
             disabled={busy}
           />
           <FileDrop
             step={2}
             label="Drawing / BOM PDF"
-            hint="Table with Tag + Description columns"
+            hint="Parts table with tags, or a full drawing set with layout and nameplate pages"
             accept={PDF_EXT.join(",")}
             icon={FileText}
             file={pdf}
@@ -205,7 +217,8 @@ export default function NewInspection() {
           <FileDrop
             step={3}
             label="Wiring list"
-            hint="XLSX / XLS / CSV with Wire No, From, To"
+            optional
+            hint="Optional - XLSX / XLS / CSV with Wire No, From, To (adds the ferrule check)"
             accept={EXCEL_EXT.join(",")}
             icon={FileSpreadsheet}
             file={excel}
@@ -214,24 +227,38 @@ export default function NewInspection() {
           />
         </div>
 
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <CameraButton
+            disabled={busy}
+            label="Take photos with the camera"
+            onCapture={(files) => {
+              setImages((prev) => [...prev, ...files].slice(0, MAX_PHOTOS));
+              toast(`Added ${files.length} camera photo${files.length === 1 ? "" : "s"}`);
+            }}
+          />
+        </div>
+
         <p className="text-center text-xs text-muted">
-          Tip: drop all three files anywhere on this page — they are sorted automatically. A copied photo can be pasted with{" "}
+          Tip: drop all files anywhere on this page — they are sorted automatically. A copied photo can be pasted with{" "}
           <span className="kbd">Ctrl V</span>.
         </p>
 
-        <div className="card flex flex-wrap items-end gap-4 p-5">
-          <label className="flex min-w-60 flex-1 flex-col gap-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted">Cabinet name (optional)</span>
+        <div className="card flex flex-col gap-4 p-5 sm:flex-row sm:items-end sm:p-6">
+          <label className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <span className="field-label">
+              Cabinet name <span className="font-normal text-muted">(optional)</span>
+            </span>
             <input
               value={cabinetName}
               onChange={(e) => setCabinetName(e.target.value)}
               maxLength={120}
               disabled={busy}
               placeholder="e.g. CC-01 Pump station"
-              className="input"
+              className="input h-11"
             />
+            <span className="field-help">Shown on the report and in the inspection history.</span>
           </label>
-          <button type="submit" className="btn btn-primary px-6 py-3" disabled={!ready}>
+          <button type="submit" className="btn btn-primary h-11 px-6 sm:mb-[22px]" disabled={!ready}>
             {busy ? <LoaderCircle size={18} className="animate-spin" /> : <ScanLine size={18} />}
             {busy ? "Inspecting…" : "Run inspection"}
           </button>
@@ -280,7 +307,9 @@ export default function NewInspection() {
               </div>
               <div className="p-6">
                 <div className="mb-4 flex justify-between text-sm font-medium">
-                  <span>Analysing — this usually takes 5–15 seconds</span>
+                  <span>
+                    Analysing {images.length} photo{images.length === 1 ? "" : "s"} — big phone photos take about 10–20 seconds each
+                  </span>
                   <span className="tabular-nums text-muted">{elapsed}s</span>
                 </div>
                 <ol className="space-y-2.5">

@@ -10,7 +10,7 @@ def _route(ctx: CheckContext, label: str) -> str:
 @register("ferrule", "Ferrule check", order=30)
 def run(ctx: CheckContext) -> list[dict]:
     checks = ctx.core.get("wire_labels", [])
-    boxes = [(w["label"], ctx.device_box(w.get("bbox"))) for w in checks]   # whole sleeve, not just the digits
+    boxes = [(w["label"], ctx.device_box(w.get("bbox"), w.get("photo")), w.get("photo") or 0) for w in checks]   # whole sleeve, not just the digits
     items = []
     labels = [w["label"] for w in checks]
     present = {w["label"] for w in checks if w["status"] != "missing"}
@@ -20,17 +20,18 @@ def run(ctx: CheckContext) -> list[dict]:
         wire = f"the wire {route}" if route else "its wire"
         what = f"Ferrule {label}" + (f" ({route})" if route else "")
         if status == "ok":
-            items.append(item(label, what, label, w.get("read_as") or label, True, bbox=w.get("bbox")))
+            items.append(item(label, what, label, w.get("read_as") or label, True, bbox=w.get("bbox"), photo=w.get("photo")))
         elif status == "mismatch":
             d = ctx.defect("WIRE_LABEL_MISMATCH", label) or {}
             items.append(item(label, what, label, w.get("read_as") or "?", False, code="WIRE_LABEL_MISMATCH",
-                              message=d.get("message", f"Wire '{label}' expected."), bbox=w.get("bbox"),
+                              message=d.get("message", f"Wire '{label}' expected."), bbox=w.get("bbox"), photo=w.get("photo"),
                               fix=f"Replace the ferrule '{w.get('read_as') or '?'}' with '{label}' on {wire}."))
         else:
             d = ctx.defect("WIRE_LABEL_MISSING", label) or {}
+            gap, gap_photo = estimate_gap(boxes, index, ctx.image_size)
             items.append(item(label, what, "Ferrule fitted", "No ferrule", False, code="WIRE_LABEL_MISSING",
                               message=d.get("message", f"Wire label '{label}' not found."),
-                              bbox=estimate_gap(boxes, index, ctx.image_size), estimated=True,
+                              bbox=gap, photo=gap_photo, estimated=True,
                               fix=f"Fit ferrule '{label}' on {wire}"
                                   + (f" (expected {where})" if (where := place(*neighbours(labels, index, present))) else "")
                                   + ". If it is fitted, turn it so the number faces the camera."))

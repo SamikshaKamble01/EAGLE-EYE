@@ -40,6 +40,12 @@ class Config:
     OCR_ENGINE = os.getenv("OCR_ENGINE", "auto")          # auto | tesseract | easyocr
     TESSERACT_CMD = os.getenv("TESSERACT_CMD", "")         # e.g. C:\Program Files\Tesseract-OCR\tesseract.exe
     OCR_MIN_CONFIDENCE = float(os.getenv("OCR_MIN_CONFIDENCE", "40"))  # 0-100
+    # Also read the photo turned 90 degrees each way (sideways labels on DIN-rail devices).
+    # "0" = upright only (faster).
+    OCR_ROTATIONS = os.getenv("OCR_ROTATIONS", "0,90,270")
+    # Read big photos (> 2000 px) also in overlapping full-resolution tiles: much better
+    # on real phone photos with small labels, but slower.
+    OCR_TILES = _bool("OCR_TILES", True)
 
     # --- Rule engine -------------------------------------------------------
     # Regex for things that look like device tags (K1, -Q12, X1, F3.1 ...)

@@ -74,9 +74,9 @@ export function listInspections(params: { limit?: number; offset?: number; verdi
 export const deleteInspection = (id: string) => request<void>(`/inspections/${id}`, { method: "DELETE" });
 
 export interface NewInspection {
-  image: File;
+  images: File[]; // one or several photos of the same cabinet
   pdf: File;
-  excel: File;
+  excel?: File | null; // wire list, optional
   cabinetName?: string;
 }
 
@@ -86,9 +86,9 @@ export interface NewInspection {
  */
 export function createInspection(data: NewInspection, onUploadProgress?: (pct: number) => void): Promise<Inspection> {
   const form = new FormData();
-  form.append("image", data.image);
+  for (const photo of data.images) form.append("image", photo);
   form.append("pdf", data.pdf);
-  form.append("excel", data.excel);
+  if (data.excel) form.append("excel", data.excel);
   if (data.cabinetName) form.append("cabinet_name", data.cabinetName);
   return upload("/inspections", form, onUploadProgress);
 }
@@ -98,9 +98,9 @@ export function createInspection(data: NewInspection, onUploadProgress?: (pct: n
  * drawing and wire list and answers with a new inspection whose
  * result.recheck says what is closed / still open / new.
  */
-export function recheckInspection(id: string, image: File, onUploadProgress?: (pct: number) => void): Promise<Inspection> {
+export function recheckInspection(id: string, images: File[], onUploadProgress?: (pct: number) => void): Promise<Inspection> {
   const form = new FormData();
-  form.append("image", image);
+  for (const photo of images) form.append("image", photo);
   return upload(`/inspections/${id}/recheck`, form, onUploadProgress);
 }
 
@@ -141,7 +141,7 @@ function upload(path: string, form: FormData, onUploadProgress?: (pct: number) =
 
 export const reportUrl = (id: string, download = false) =>
   `${BASE}/inspections/${id}/report${download ? "?download=1" : ""}`;
-export const annotatedImageUrl = (id: string) => `${BASE}/inspections/${id}/annotated-image`;
-export const originalImageUrl = (id: string) => `${BASE}/inspections/${id}/image`;
+export const annotatedImageUrl = (id: string, photo = 0) => `${BASE}/inspections/${id}/annotated-image${photo ? `?photo=${photo}` : ""}`;
+export const originalImageUrl = (id: string, photo = 0) => `${BASE}/inspections/${id}/image${photo ? `?photo=${photo}` : ""}`;
 export const checklistXlsxUrl = (id: string) => `${BASE}/inspections/${id}/checklist.xlsx`;
 export const snippetUrl = (id: string, name: string) => `${BASE}/inspections/${id}/snippets/${name}`;

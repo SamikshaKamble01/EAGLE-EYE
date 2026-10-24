@@ -42,8 +42,9 @@ def _out_of_order(sequence: list[int]) -> set[int]:
 
 def _order_item(located: list[dict]) -> dict:
     """Devices of one family (same letters: K1, K2, K3 ...) must appear in the photo
-    in the same left-to-right order as the drawing lists them."""
-    rows = _rows(located)
+    in the same left-to-right order as the drawing lists them (row by row, photo by photo)."""
+    rows = [row for photo in sorted({d["photo"] for d in located})
+            for row in _rows([d for d in located if d["photo"] == photo])]
     moved: list[dict] = []
     for row in rows:
         for prefix in {d["prefix"] for d in row}:
@@ -52,13 +53,15 @@ def _order_item(located: list[dict]) -> dict:
 
     expected = " - ".join(d["tag"] for d in sorted(located, key=lambda d: d["index"]))
     found = " - ".join(d["tag"] for row in rows for d in row)
-    box = None
+    box, photo = None, None
     if moved:
-        box = [min(d["box"][0] for d in moved), min(d["box"][1] for d in moved),
-               max(d["box"][2] for d in moved), max(d["box"][3] for d in moved)]
+        photo = moved[0]["photo"]
+        same = [d for d in moved if d["photo"] == photo]
+        box = [min(d["box"][0] for d in same), min(d["box"][1] for d in same),
+               max(d["box"][2] for d in same), max(d["box"][3] for d in same)]
     tags = ", ".join(sorted(d["tag"] for d in moved))
     return item("Device order", "Devices are in the order of the drawing", expected or "-", found or "-",
-                not moved, severity="major", code="COMPONENT_ORDER", bbox=box, key="order",
+                not moved, severity="major", code="COMPONENT_ORDER", bbox=box, photo=photo, key="order",
                 message=f"{tags} {'is' if len(moved) == 1 else 'are'} not in the order shown in the drawing.",
                 fix=f"Move {tags} so the devices read {expected} from left to right.")
 
@@ -66,34 +69,35 @@ def _order_item(located: list[dict]) -> dict:
 @register("ga", "GA check", order=10)
 def run(ctx: CheckContext) -> list[dict]:
     checks = ctx.core.get("components", [])
-    boxes = [(c["tag"], ctx.device_box(c.get("bbox"))) for c in checks]
+    boxes = [(c["tag"], ctx.device_box(c.get("bbox"), c.get("photo")), c.get("photo") or 0) for c in checks]
     items: list[dict] = []
     located: list[dict] = []
     tags = [c["tag"] for c in checks]
     present = {c["tag"] for c in checks if c["status"] != "missing"}
 
     for index, c in enumerate(checks):
-        tag, status, box = c["tag"], c["status"], boxes[index][1]
+        tag, status, box, photo = c["tag"], c["status"], boxes[index][1], boxes[index][2]
         what = f"{_nice(c['type']).capitalize()} {tag} is installed"
         part = f"{_nice(c['type'])} {tag}" + (f" ({c['description']})" if c.get("description") else "")
         if status in _PRESENT:
-            items.append(item(tag, what, "Present", "Present", True, bbox=box))
+            items.append(item(tag, what, "Present", "Present", True, bbox=box, photo=photo))
         elif status == "type_mismatch":
             d = ctx.defect("COMPONENT_TYPE_MISMATCH", tag) or {}
             items.append(item(tag, what, _nice(c["type"]), _nice(c.get("detected_type")), False,
                               severity="critical", code="COMPONENT_TYPE_MISMATCH",
-                              message=d.get("message", f"{tag} is the wrong kind of device."), bbox=box,
+                              message=d.get("message", f"{tag} is the wrong kind of device."), bbox=box, photo=photo,
                               fix=f"Replace the {_nice(c.get('detected_type'))} at this position with the {part}."))
         else:
             d = ctx.defect("COMPONENT_MISSING", tag) or {}
             where = place(*neighbours(tags, index, present))
+            gap, gap_photo = estimate_gap(boxes, index, ctx.image_size)
             items.append(item(tag, what, "Present", "Missing", False, severity="critical",
                               code="COMPONENT_MISSING", message=d.get("message", f"{tag} was not found."),
-                              bbox=estimate_gap(boxes, index, ctx.image_size), estimated=True,
+                              bbox=gap, photo=gap_photo, estimated=True,
                               fix=f"Install the {part}" + (f" {where}" if where else "")
                                   + f" and label it {tag}. If it is already there, make its label visible."))
         if box and status != "missing":
-            located.append({"tag": tag, "index": index, "prefix": tag_prefix(tag), "box": box,
+            located.append({"tag": tag, "index": index, "prefix": tag_prefix(tag), "box": box, "photo": photo,
                             "cx": (box[0] + box[2]) / 2, "cy": (box[1] + box[3]) / 2})
 
     # quantity problems the detector reports per device type (trained model only)
@@ -106,6 +110,11 @@ def run(ctx: CheckContext) -> list[dict]:
                                    if d["code"] == "COMPONENT_COUNT_SHORT" else
                                    f"Remove the surplus {_nice(d['item'])}(s): the drawing lists only {d['expected']}.")))
 
-    if len(located) > 1:
+    # The order rule needs the drawing's left-to-right order. A parts table gives it; tags
+    # collected from nameplate / layout pages of a drawing set do not (they are sorted by
+    # name, and PS11, PS21, PS12 ... may well sit side by side), so it is skipped there.
+    from_drawing_set = any(str(c.get("source", "")).startswith(("nameplate", "layout"))
+                           for c in ctx.expected_components)
+    if len(located) > 1 and not from_drawing_set:
         items.append(_order_item(located))
     return items

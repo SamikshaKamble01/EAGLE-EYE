@@ -22,6 +22,12 @@ from app.utils.text import levenshtein, ocr_fold, tag_prefix
 
 SEVERITY_ORDER = {"critical": 0, "major": 1, "minor": 2}
 
+# Real photos are full of tag-shaped OCR noise ('X5' on a terminal, 'FSW7').
+# A reading only counts as a WRONG label when it is confidently read and has the
+# same length as the expected tag (K1 printed as K7), never for a near-miss guess.
+MISMATCH_MIN_CONFIDENCE = 75
+UNEXPECTED_MIN_CONFIDENCE = 70
+
 
 @dataclass
 class RuleConfig:
@@ -72,7 +78,8 @@ class LabelMatcher:
             and t["text"] not in self.all_expected
             and ocr_fold(t["text"]) not in self.all_expected_folded
             and levenshtein(ocr_fold(t["text"]), folded) == 1
-            and abs(len(t["text"]) - len(label)) <= 1
+            and len(t["text"]) == len(label)
+            and t["confidence"] >= MISMATCH_MIN_CONFIDENCE
         ]
         if candidates:
             best = max(candidates, key=lambda t: t["confidence"])
@@ -81,9 +88,11 @@ class LabelMatcher:
         return "missing", None
 
 
-def _locate(detections: list[dict], bbox) -> dict | None:
+def _locate(detections: list[dict], bbox, photo: int = 0) -> dict | None:
     """The detection a label belongs to: the one containing the label centre,
-    otherwise the nearest one within 1.5 label-heights of its edge."""
+    otherwise the nearest one within 1.5 label-heights of its edge.
+    Only detections in the same photo count."""
+    detections = [d for d in detections or [] if d.get("photo", 0) == (photo or 0)]
     if not detections or not bbox:
         return None
     cx, cy = _center(bbox)
@@ -135,10 +144,11 @@ def evaluate(expected_components: list[dict], expected_wiring: dict,
         status, hit = matcher.match(tag)
         check = {"tag": tag, "type": ctype, "description": comp.get("description", ""),
                  "status": "ok", "read_as": hit["text"] if hit else None,
-                 "bbox": hit["bbox"] if hit else None, "detected_type": None}
+                 "bbox": hit["bbox"] if hit else None, "photo": hit.get("photo", 0) if hit else None,
+                 "detected_type": None}
 
         if status in ("found", "mismatch"):
-            det = _locate(detections, hit["bbox"])
+            det = _locate(detections, hit["bbox"], hit.get("photo", 0))
             if det is not None:
                 claimed_detections.add(id(det))
                 check["detected_type"] = det["type"] if typed else None
@@ -178,7 +188,7 @@ def evaluate(expected_components: list[dict], expected_wiring: dict,
                 "LABEL_MISSING", "major", tag, tag, None,
                 f"A {ctype.replace('_', ' ')} is present but label '{tag}' could not be read on it."))
         else:
-            hint = "" if typed else " (component missing, or its label is not visible in the photo)"
+            hint = "" if typed else " (component missing, or its label is not visible in the photos)"
             defects.append(_defect(
                 "COMPONENT_MISSING", "critical", tag, f"{tag} ({ctype.replace('_', ' ')})", None,
                 f"{tag} - {check['description'] or ctype.replace('_', ' ')} - was not found{hint}."))
@@ -209,7 +219,8 @@ def evaluate(expected_components: list[dict], expected_wiring: dict,
         status, hit = matcher.match(label)
         wire_checks.append({"label": label, "status": {"found": "ok"}.get(status, status),
                             "read_as": hit["text"] if hit else None,
-                            "bbox": hit["bbox"] if hit else None})
+                            "bbox": hit["bbox"] if hit else None,
+                            "photo": hit.get("photo", 0) if hit else None})
         if status == "mismatch":
             defects.append(_defect("WIRE_LABEL_MISMATCH", "major", label, label, hit["text"],
                                    f"Wire '{label}' expected, read '{hit['text']}'."))
@@ -224,10 +235,20 @@ def evaluate(expected_components: list[dict], expected_wiring: dict,
         pattern = re.compile(cfg.tag_pattern)
         seen: set[str] = set()
         all_folded = {ocr_fold(e) for e in all_expected}
+        # only device families the documents use (K.., PS.., CB..): real photos are full of
+        # tag-shaped noise (part numbers, 'L1' on terminals) that is not a device label
+        families = {tag_prefix(e) for e in all_expected if tag_prefix(e)}
+        # how many digits each family uses (PS11 -> PS:2), so 'PS2' is not taken for a device label
+        digits = {}
+        for e in all_expected:
+            if tag_prefix(e):
+                digits.setdefault(tag_prefix(e), set()).add(len(e) - len(tag_prefix(e)))
         for t in ocr_texts:
             txt = t["text"]
             if (id(t) in matcher.used_ids or txt in seen or not pattern.match(txt)
-                    or ocr_fold(txt) in all_folded):
+                    or ocr_fold(txt) in all_folded or tag_prefix(txt) not in families
+                    or t.get("confidence", 100) < UNEXPECTED_MIN_CONFIDENCE
+                    or len(txt) - len(tag_prefix(txt)) not in digits.get(tag_prefix(txt), set())):
                 continue
             seen.add(txt)
             defects.append(_defect("UNEXPECTED_LABEL", "minor", txt, None, txt,

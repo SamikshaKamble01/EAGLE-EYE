@@ -11,8 +11,10 @@ Each result: {"text": normalized, "raw": as read, "confidence": 0-100, "bbox": [
 bbox coordinates are always in ORIGINAL image pixels.
 """
 import logging
+import os
 import re
 import shutil
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
 import cv2
@@ -34,10 +36,15 @@ def _iou(a, b) -> float:
     return inter / float(area(a) + area(b) - inter)
 
 
+_TAG_LIKE = re.compile(r"^-?[A-Z]{1,5}\d{1,4}[A-Z]?(\.\d{1,3})?$|^\d{2,5}$")
+
+
 def _merge(results: list[dict]) -> list[dict]:
-    """Same word read in several preprocessing passes -> keep the most confident."""
+    """Same word read in several preprocessing passes -> keep the most confident.
+    When two different texts were read at the same spot (e.g. upright and rotated),
+    a tag-like reading (K1, PS13, 105) wins over noise, then the more confident one."""
     merged: list[dict] = []
-    for r in sorted(results, key=lambda x: -x["confidence"]):
+    for r in sorted(results, key=lambda x: (not _TAG_LIKE.match(x["text"]), -x["confidence"])):
         cx, cy = (r["bbox"][0] + r["bbox"][2]) / 2, (r["bbox"][1] + r["bbox"][3]) / 2
         same_word = any(m["text"] == r["text"] and (_iou(m["bbox"], r["bbox"]) > 0.3 or
                         (m["bbox"][0] <= cx <= m["bbox"][2] and m["bbox"][1] <= cy <= m["bbox"][3]))
@@ -149,6 +156,7 @@ def find_label_regions(image: np.ndarray, max_regions: int = 150):
 # --------------------------------------------------------------------------- #
 class TesseractEngine:
     name = "tesseract"
+    parallel = True    # every call is its own tesseract process
 
     def __init__(self, cmd: str = ""):
         import pytesseract
@@ -162,8 +170,12 @@ class TesseractEngine:
                 "Tesseract is not installed or not on PATH. Install it or set TESSERACT_CMD in .env."
             ) from exc
 
-    def read(self, image: np.ndarray) -> list[dict]:
+    def read(self, image: np.ndarray, light: bool = False, regions: bool = True) -> list[dict]:
+        """light = one preprocessing variant instead of three, and the label crops are read
+        in batches (used for big photos and their tiles). regions=False skips pass 2."""
         variants, scale = _preprocess(image)
+        if light:
+            variants = variants[:1]
         out: list[dict] = []
         # Pass 1 - whole image, sparse text mode (labels scattered over a photo)
         for variant in variants:
@@ -178,7 +190,46 @@ class TesseractEngine:
                             "bbox": [int(x), int(y), int(x + w), int(y + h)]})
         # Pass 2 - each label-like region on its own (stickers, ferrules, tags).
         # Tesseract reads isolated short text far better than text inside a busy photo.
-        out += self._read_regions(image)
+        if regions:
+            out += self._read_regions_batched(image) if light else self._read_regions(image)
+        return out
+
+    def _read_regions_batched(self, image: np.ndarray, per_call: int = 40) -> list[dict]:
+        """Same as _read_regions, but the prepared crops are stacked into one tall image
+        and read with ONE tesseract call per batch. Starting a tesseract process costs far
+        more than reading a 50 px crop, so on big photos (hundreds of crops) this is
+        many times faster."""
+        # psm 6 (block) and psm 11 (sparse) each win on different labels, like psm 7 / 8 per crop
+        configs = [f"--oem 3 --psm {psm} -c load_system_dawg=0 -c load_freq_dawg=0" for psm in (6, 11)]
+        regions = find_label_regions(image)
+        out = []
+        gap = 40
+        for start in range(0, len(regions), per_call):
+            chunk = regions[start:start + per_call]
+            width = max(c.shape[1] for _, c in chunk)
+            rows, bands, y = [], [], 0
+            for box, crop in chunk:
+                padded = cv2.copyMakeBorder(crop, 0, gap, 0, width - crop.shape[1], cv2.BORDER_CONSTANT, value=255)
+                rows.append(padded)
+                bands.append((y, y + crop.shape[0], box))
+                y += padded.shape[0]
+            sheet = np.vstack(rows)
+            for base in configs:
+                out += self._words_in_bands(sheet, base, bands, gap)
+        return out
+
+    def _words_in_bands(self, sheet, config, bands, gap) -> list[dict]:
+        """Read a stacked sheet of crops; every word goes back to the crop (band) it sits in."""
+        out = []
+        data = self.pt.image_to_data(sheet, config=config, output_type=self.pt.Output.DICT)
+        for i, t in enumerate(data["text"]):
+            c = float(data["conf"][i])
+            if not t.strip() or c < 0:
+                continue
+            cy = data["top"][i] + data["height"][i] / 2
+            band = next((b for b in bands if b[0] - gap / 2 <= cy <= b[1] + gap / 2), None)
+            if band:
+                out.append({"raw": t.strip(), "confidence": c, "bbox": list(band[2]), "region": True})
         return out
 
     def _read_regions(self, image: np.ndarray) -> list[dict]:
@@ -205,7 +256,9 @@ class EasyOcrEngine:
     def __init__(self):
         self.reader = _easyocr_reader()
 
-    def read(self, image: np.ndarray) -> list[dict]:
+    parallel = False   # one shared model; not safe to call from several threads
+
+    def read(self, image: np.ndarray, light: bool = False, regions: bool = True) -> list[dict]:
         out = []
         for box, raw, conf in self.reader.readtext(image):
             xs, ys = [p[0] for p in box], [p[1] for p in box]
@@ -267,11 +320,78 @@ def _repair_tag(text: str) -> str:
     return text
 
 
+# Labels on DIN-rail devices and ferrules are often printed sideways, so the photo
+# is also read turned 90 degrees each way and the boxes are mapped back.
+_ROTATIONS = {90: cv2.ROTATE_90_COUNTERCLOCKWISE, 270: cv2.ROTATE_90_CLOCKWISE}
+
+
+def _unrotate(bbox, angle: int, w: int, h: int) -> list[int]:
+    """Box in the rotated image -> box in the original (w x h) image."""
+    x1, y1, x2, y2 = bbox
+    if angle == 90:      # original (x, y) -> rotated (y, w-1-x)
+        pts = [(w - 1 - y1, x1), (w - 1 - y2, x2)]
+    elif angle == 270:   # original (x, y) -> rotated (h-1-y, x)
+        pts = [(y1, h - 1 - x1), (y2, h - 1 - x2)]
+    else:
+        return [int(v) for v in bbox]
+    xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+    return [int(min(xs)), int(min(ys)), int(max(xs)), int(max(ys))]
+
+
+def _parse_rotations(rotations) -> list[int]:
+    if isinstance(rotations, str):
+        rotations = [r for r in rotations.replace(" ", "").split(",") if r]
+    out = [int(r) for r in rotations or [0]]
+    return [r for r in out if r in (0, 90, 270)] or [0]
+
+
+# Big phone photos are also read in overlapping tiles at full resolution: small
+# labels survive, and the label finder thresholds each tile on its own contrast.
+TILE_SIZE, TILE_OVERLAP, TILE_MIN = 1400, 250, 2000
+
+
+def _tiles(h: int, w: int):
+    step = TILE_SIZE - TILE_OVERLAP
+    ys = list(range(0, max(1, h - TILE_OVERLAP), step))
+    xs = list(range(0, max(1, w - TILE_OVERLAP), step))
+    for y in ys:
+        for x in xs:
+            yield x, y, min(w, x + TILE_SIZE), min(h, y + TILE_SIZE)
+
+
 def read_labels(image: np.ndarray, engine: str = "auto", tesseract_cmd: str = "",
-                min_confidence: float = 40) -> dict:
+                min_confidence: float = 40, rotations="0", tiles: bool = False) -> dict:
     ocr = get_engine(engine, tesseract_cmd)
+    h, w = image.shape[:2]
+
+    # jobs: (angle, x offset, y offset, image, light, read label regions)
+    big = tiles and max(h, w) > TILE_MIN
+    jobs = []
+    for angle in _parse_rotations(rotations):
+        turned = image if angle == 0 else cv2.rotate(image, _ROTATIONS[angle])
+        if big:
+            # the tiles do the detailed work; the whole photo is only skimmed once, upright,
+            # for big labels that a tile would cut in half
+            if angle == 0:
+                jobs.append((angle, 0, 0, turned, True, False))
+            th, tw = turned.shape[:2]
+            jobs += [(angle, x1, y1, turned[y1:y2, x1:x2], True, True) for x1, y1, x2, y2 in _tiles(th, tw)]
+        else:
+            jobs.append((angle, 0, 0, turned, False, True))
+
+    def run(job):
+        angle, ox, oy, img, light, regions = job
+        found = ocr.read(img, light=light, regions=regions)
+        for r in found:
+            x1, y1, x2, y2 = r["bbox"]
+            r["bbox"] = _unrotate([x1 + ox, y1 + oy, x2 + ox, y2 + oy], angle, w, h)
+        return found
+
+    workers = max(1, min(4, (os.cpu_count() or 2) // 2)) if getattr(ocr, "parallel", False) else 1
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        raw = [r for found in pool.map(run, jobs) for r in found]
     results = []
-    for r in ocr.read(image):
+    for r in raw:
         text = _repair_tag(normalize_label(r["raw"]))
         # an isolated label crop is a much easier read than free text in the
         # photo, so region reads are trusted at half the confidence threshold

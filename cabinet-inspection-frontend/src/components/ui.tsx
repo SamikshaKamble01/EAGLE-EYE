@@ -6,7 +6,11 @@ import { CountUp, useCountUp } from "./charts";
 
 export function VerdictBadge({ verdict, size = "md" }: { verdict: Verdict | null; size?: "sm" | "md" | "lg" }) {
   if (!verdict) {
-    return <span className="rounded-md bg-slate-500/15 px-2 py-0.5 text-xs font-semibold text-muted">ERROR</span>;
+    return (
+      <span className="inline-flex items-center rounded-md bg-slate-500/10 px-2 py-0.5 text-xs font-semibold text-muted ring-1 ring-inset ring-slate-500/20">
+        ERROR
+      </span>
+    );
   }
   const pass = verdict === "PASS";
   const Icon = pass ? CircleCheck : CircleX;
@@ -16,12 +20,17 @@ export function VerdictBadge({ verdict, size = "md" }: { verdict: Verdict | null
     lg: "px-5 py-2.5 text-2xl gap-2.5 tracking-wide",
   };
   const icon = { sm: 13, md: 16, lg: 28 }[size];
+  // small / medium badges are soft (tinted) so tables stay calm; the large one on the result page stays solid
+  const tone =
+    size === "lg"
+      ? pass
+        ? "bg-emerald-600 text-white shadow-sm"
+        : "bg-red-600 text-white shadow-sm"
+      : pass
+        ? "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-400/25"
+        : "bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20 dark:bg-red-500/15 dark:text-red-300 dark:ring-red-400/25";
   return (
-    <span
-      className={`inline-flex items-center rounded-lg font-extrabold text-white ${sizes[size]} ${
-        pass ? "bg-emerald-600 shadow-emerald-500/30" : "bg-red-600 shadow-red-500/30"
-      } ${size === "lg" ? "shadow-lg" : ""}`}
-    >
+    <span className={`inline-flex items-center rounded-md font-bold ${sizes[size]} ${tone}`}>
       <Icon size={icon} strokeWidth={2.5} />
       {verdict}
     </span>
@@ -84,10 +93,10 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 
 export function PageHeader({ title, subtitle, actions }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-        {subtitle && <p className="mt-1 max-w-2xl text-sm text-muted">{subtitle}</p>}
+        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        {subtitle && <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
@@ -124,17 +133,17 @@ export function StatCard({
   onClick?: () => void;
 }) {
   return (
-    <div className={`card card-hover h-full p-5 ${onClick ? "cursor-pointer" : ""}`} onClick={onClick}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</div>
-        <div className={`rounded-lg p-2 ${tones[tone]}`}>
+    <div className={`card h-full p-5 ${onClick ? "card-hover cursor-pointer" : ""}`} onClick={onClick}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</div>
+        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${tones[tone]}`}>
           <Icon size={18} />
         </div>
       </div>
-      <div className={`mt-1 text-3xl font-bold tabular-nums ${accent}`}>
+      <div className={`mt-3 text-3xl font-semibold leading-none tracking-tight tabular-nums ${accent}`}>
         <CountUp value={value} decimals={decimals} suffix={suffix} />
       </div>
-      {hint && <div className="mt-1 text-xs text-muted">{hint}</div>}
+      {hint && <div className="mt-2.5 text-xs text-muted">{hint}</div>}
     </div>
   );
 }

@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Donut, TrendChart, type TrendPoint } from "../components/charts";
 import ScoreBreakdown from "../components/ScoreBreakdown";
+import Cabinet3DViewer from "../components/cabinet3d/Cabinet3DViewer";
 import { ErrorState, PageHeader, ScoreBar, SeverityBadge, Skeleton, StatCard, VerdictBadge, severityStyle } from "../components/ui";
-import { getStats, listInspections } from "../lib/api";
+import { getInspection, getStats, listInspections } from "../lib/api";
 import { defectTitle, formatDate, timeAgo } from "../lib/format";
 import { useApi } from "../lib/useApi";
 
@@ -16,6 +17,9 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { data, loading, error, reload } = useApi(() => getStats(), []);
   const { data: list, reload: reloadList } = useApi(() => listInspections({ limit: TREND_POINTS }), []);
+  // the newest completed inspection is shown in the 3D cabinet view
+  const latestId = (list?.items ?? []).find((i) => i.status === "completed")?.id ?? null;
+  const { data: latest } = useApi(() => (latestId ? getInspection(latestId) : Promise.resolve(null)), [latestId]);
   const [scoresOpen, setScoresOpen] = useState(false);
 
   // re-fetch quietly so new inspections appear without pressing F5
@@ -94,7 +98,7 @@ export default function Dashboard() {
         }
       />
 
-      <div className="stagger grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 lg:gap-5">
         <div style={{ "--i": 0 } as CSSProperties}>
           <StatCard
             label="Inspections"
@@ -197,6 +201,19 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {latest?.result && (
+        <div className="mt-6">
+          <Cabinet3DViewer
+            key={latest.id}
+            result={latest.result}
+            inspectionId={latest.id}
+            cabinetName={latest.cabinet_name ?? undefined}
+            title={`3D cabinet view · latest inspection: ${latest.cabinet_name || "Unnamed cabinet"}`}
+            height="h-[520px]"
+          />
+        </div>
+      )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.3fr_1fr]">
         {/* most common defects */}

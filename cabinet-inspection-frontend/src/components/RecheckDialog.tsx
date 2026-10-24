@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { ApiError, recheckInspection } from "../lib/api";
 import { useFeedback } from "./Feedback";
+import { CameraButton } from "./CameraCapture";
 import FileDrop from "./FileDrop";
 
 interface Props {
@@ -18,7 +19,7 @@ interface Props {
 export default function RecheckDialog({ id, cabinetName, openIssues, onClose }: Props) {
   const navigate = useNavigate();
   const { toast } = useFeedback();
-  const [image, setImage] = useState<File | null>(null);
+  const [images, setImages] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [pct, setPct] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -30,11 +31,11 @@ export default function RecheckDialog({ id, cabinetName, openIssues, onClose }: 
   }, [busy, onClose]);
 
   async function run() {
-    if (!image) return;
+    if (!images.length) return;
     setBusy(true);
     setError(null);
     try {
-      const next = await recheckInspection(id, image, setPct);
+      const next = await recheckInspection(id, images, setPct);
       const re = next.result?.recheck;
       toast(
         re ? `Re-check done: ${re.closed.length} closed, ${re.still_open.length} still open, ${re.new.length} new` : "Re-check done",
@@ -65,14 +66,21 @@ export default function RecheckDialog({ id, cabinetName, openIssues, onClose }: 
         </div>
 
         <FileDrop
-          label="New cabinet photo"
-          hint="JPG or PNG taken after the fix"
+          label="New cabinet photos"
+          hint="One or more JPG / PNG photos taken after the fix"
           accept=".jpg,.jpeg,.png,.bmp,.webp"
           icon={ImageIcon}
-          file={image}
-          onChange={setImage}
+          multiple
+          files={images}
+          onFilesChange={setImages}
           showPreview
           disabled={busy}
+        />
+        <CameraButton
+          className="btn btn-ghost mt-3 w-full"
+          label="Take photos with the camera"
+          disabled={busy}
+          onCapture={(files) => setImages((prev) => [...prev, ...files].slice(0, 10))}
         />
 
         {error && <p className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
@@ -93,7 +101,7 @@ export default function RecheckDialog({ id, cabinetName, openIssues, onClose }: 
           <button className="btn btn-ghost" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button className="btn btn-primary" onClick={run} disabled={!image || busy}>
+          <button className="btn btn-primary" onClick={run} disabled={!images.length || busy}>
             {busy ? <LoaderCircle size={17} className="animate-spin" /> : <RefreshCcw size={17} />}
             {busy ? "Re-checking…" : "Run re-check"}
           </button>

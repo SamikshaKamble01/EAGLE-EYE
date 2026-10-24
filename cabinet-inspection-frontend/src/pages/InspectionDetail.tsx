@@ -1,7 +1,8 @@
 // Result page: verdict, score, defects (hover = highlight, click = pin + zoom on photo), checks, report.
 import { ArrowLeft, ArrowRight, Braces, Check, Copy, Crosshair, FileSpreadsheet, FileText, RefreshCcw, Search, Table2, Trash2, TriangleAlert, Wrench } from "lucide-react";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import Cabinet3DViewer from "../components/cabinet3d/Cabinet3DViewer";
 import CheckSheet from "../components/CheckSheet";
 import { useFeedback } from "../components/Feedback";
 import InspectionViewer from "../components/InspectionViewer";
@@ -18,6 +19,7 @@ type Tab = "sheet" | "components" | "wires" | "pipeline";
 export default function InspectionDetail() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast, confirm } = useFeedback();
   const { data, loading, error, reload } = useApi(() => getInspection(id), [id]);
   const [highlight, setHighlight] = useState<string | null>(null);
@@ -31,6 +33,13 @@ export default function InspectionDetail() {
   const [copied, setCopied] = useState(false);
 
   const result = data?.result;
+
+  // after an inspection started from the 3D viewer, land on the 3D view
+  useEffect(() => {
+    if (location.hash !== "#cabinet-3d" || !result) return;
+    const t = setTimeout(() => document.getElementById("cabinet-3d")?.scrollIntoView({ behavior: "smooth", block: "start" }), 300);
+    return () => clearTimeout(t);
+  }, [location.hash, result]);
 
   // moving to another inspection (e.g. after a re-check) starts clean
   useEffect(() => {
@@ -458,6 +467,11 @@ export default function InspectionDetail() {
           </ol>
         </div>
       )}
+
+      {/* ---- 3D cabinet view (illustrative layout, real check-sheet statuses) ---- */}
+      <div className="mt-6">
+        <Cabinet3DViewer key={id} result={r} inspectionId={id} cabinetName={name} title="3D cabinet view" />
+      </div>
 
       {/* ---- expected vs found ---- */}
       <div className="card mt-6 overflow-hidden">

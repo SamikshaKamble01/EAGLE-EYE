@@ -30,7 +30,7 @@ export default function Layout() {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
       isActive
-        ? "bg-linear-to-r from-sky-500/20 to-indigo-500/10 text-sky-700 ring-1 ring-sky-500/30 dark:text-white dark:ring-sky-400/30"
+        ? "bg-sky-500/10 text-sky-700 ring-1 ring-inset ring-sky-500/25 dark:bg-sky-500/15 dark:text-sky-200 dark:ring-sky-400/25"
         : "text-muted hover:bg-raised hover:text-ink"
     }`;
 

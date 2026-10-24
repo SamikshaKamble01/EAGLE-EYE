@@ -26,6 +26,7 @@ interface Box {
   bbox: BBox;
   label: string;
   kind: Kind;
+  photo: number;
   dashed?: boolean; // "expected here" - the part itself is missing
 }
 
@@ -46,6 +47,8 @@ export default function InspectionViewer({ id, result, highlight, pinned, onHove
   const [view, setView] = useState<View>(HOME);
   const [dragging, setDragging] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [photo, setPhoto] = useState(0); // which of several photos is shown
+  const photos = result.photos ?? [];
 
   const card = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
@@ -62,6 +65,7 @@ export default function InspectionViewer({ id, result, highlight, pinned, onHove
           bbox: c.bbox as BBox,
           label: c.status === "ok" ? c.tag : `${c.tag} ≠ ${c.read_as ?? "?"}`,
           kind: (c.status === "ok" ? "ok" : "problem") as Kind,
+          photo: c.photo ?? 0,
         })),
       ...result.wire_labels
         .filter((w) => w.bbox)
@@ -71,20 +75,29 @@ export default function InspectionViewer({ id, result, highlight, pinned, onHove
           bbox: w.bbox as BBox,
           label: w.status === "ok" ? w.label : `${w.label} ≠ ${w.read_as ?? "?"}`,
           kind: (w.status === "ok" ? "ok" : "problem") as Kind,
+          photo: w.photo ?? 0,
         })),
     ];
     // labels nobody expected (UNEXPECTED_LABEL defects) - show them in red
     const unexpected = new Set(result.defects.filter((d) => d.code === "UNEXPECTED_LABEL").map((d) => d.item));
     for (const t of result.actual.ocr_texts) {
       if (unexpected.has(t.text) && !list.some((b) => b.item === t.text)) {
-        list.push({ key: `u-${t.text}`, item: t.text, bbox: t.bbox, label: `${t.text} ?`, kind: "unexpected" });
+        list.push({ key: `u-${t.text}`, item: t.text, bbox: t.bbox, label: `${t.text} ?`, kind: "unexpected", photo: t.photo ?? 0 });
       }
     }
     // FAIL rows of the check sheet that are not drawn yet: missing parts get a
     // dashed box at the place where they were expected
     for (const it of result.checklist ?? []) {
       if (it.result === "FAIL" && it.bbox && !list.some((b) => b.item === it.item)) {
-        list.push({ key: `f-${it.key}`, item: it.item, bbox: it.bbox, label: `${it.item}: ${it.found}`, kind: "unexpected", dashed: it.bbox_estimated });
+        list.push({
+          key: `f-${it.key}`,
+          item: it.item,
+          bbox: it.bbox,
+          label: `${it.item}: ${it.found}`,
+          kind: "unexpected",
+          photo: it.photo ?? 0,
+          dashed: it.bbox_estimated,
+        });
       }
     }
     return list;
@@ -138,12 +151,19 @@ export default function InspectionViewer({ id, result, highlight, pinned, onHove
     }
     const el = stage.current;
     const box = boxes.find((b) => b.item === pinned);
-    if (!pinned || !box || !el || !size) return;
+    if (!pinned || !box) return;
+    if (box.photo !== photo) {
+      // the pinned item is on another photo: switch, then fly once that photo has loaded
+      setSize(null);
+      setPhoto(box.photo);
+      return;
+    }
+    if (!el || !size) return;
     const k = el.clientWidth / size.w; // image pixel -> screen pixel
     const [x1, y1, x2, y2] = box.bbox;
     const s = Math.min(Math.max(Math.min(el.clientWidth / ((x2 - x1) * k * 4), el.clientHeight / ((y2 - y1) * k * 4)), 1.6), 4);
     setView(clamp({ s, x: el.clientWidth / 2 - ((x1 + x2) / 2) * k * s, y: el.clientHeight / 2 - ((y1 + y2) / 2) * k * s }));
-  }, [pinned, boxes, size, clamp]);
+  }, [pinned, boxes, size, clamp, photo]);
 
   useEffect(() => {
     const onChange = () => setFullscreen(document.fullscreenElement === card.current);
@@ -151,7 +171,7 @@ export default function InspectionViewer({ id, result, highlight, pinned, onHove
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
 
-  useEffect(() => setView(HOME), [mode, fullscreen]);
+  useEffect(() => setView(HOME), [mode, fullscreen, photo]);
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
@@ -184,7 +204,13 @@ export default function InspectionViewer({ id, result, highlight, pinned, onHove
   };
 
   const active = highlight ?? pinned;
-  const visible = boxes.filter((b) => layers[b.kind]);
+  const visible = boxes.filter((b) => layers[b.kind] && b.photo === photo);
+  const problemsOn = (n: number) => boxes.filter((b) => b.photo === n && b.kind !== "ok").length;
+  const choosePhoto = (n: number) => {
+    if (n === photo) return;
+    setSize(null);
+    setPhoto(n);
+  };
   const toggleLayer = (key: keyof typeof layers) => () => setLayers((l) => ({ ...l, [key]: !l[key] }));
   const fs = size ? Math.max(12, size.w / 70) : 14; // font size in image pixels
   const sw = size ? Math.max(2, size.w / 450) : 2; // stroke width
@@ -193,7 +219,7 @@ export default function InspectionViewer({ id, result, highlight, pinned, onHove
   return (
     <div ref={card} className="card flex flex-col overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
-        <h2 className="mr-auto font-semibold">Cabinet photo</h2>
+        <h2 className="mr-auto font-semibold">{photos.length > 1 ? `Cabinet photos (${photos.length})` : "Cabinet photo"}</h2>
         <div className="flex rounded-lg bg-raised p-0.5 text-xs font-semibold">
           {(["interactive", "server"] as const).map((m) => (
             <button
@@ -213,7 +239,7 @@ export default function InspectionViewer({ id, result, highlight, pinned, onHove
           <Expand size={16} />
         </button>
         <a
-          href={mode === "server" ? annotatedImageUrl(id) : originalImageUrl(id)}
+          href={mode === "server" ? annotatedImageUrl(id, photo) : originalImageUrl(id, photo)}
           target="_blank"
           rel="noreferrer"
           title="Open image in a new tab"
@@ -223,9 +249,30 @@ export default function InspectionViewer({ id, result, highlight, pinned, onHove
         </a>
       </div>
 
+      {photos.length > 1 && (
+        <div className="flex gap-1.5 overflow-x-auto border-b border-line bg-raised px-3 py-2">
+          {photos.map((p) => {
+            const problems = problemsOn(p.index);
+            return (
+              <button
+                key={p.index}
+                onClick={() => choosePhoto(p.index)}
+                title={p.name}
+                className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition ${
+                  photo === p.index ? "bg-surface text-ink shadow-sm ring-1 ring-line" : "text-muted hover:text-ink"
+                }`}
+              >
+                Photo {p.index + 1}
+                {problems > 0 && <span className="rounded-full bg-red-500/15 px-1.5 text-[10px] text-red-600 dark:text-red-400">{problems}</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="relative flex flex-1 items-center bg-slate-950 p-3">
         {mode === "server" ? (
-          <img src={annotatedImageUrl(id)} alt="annotated cabinet" className={`mx-auto rounded ${imgMax}`} />
+          <img src={annotatedImageUrl(id, photo)} alt="annotated cabinet" className={`mx-auto rounded ${imgMax}`} />
         ) : (
           <>
             <div
@@ -250,7 +297,8 @@ export default function InspectionViewer({ id, result, highlight, pinned, onHove
                 }}
               >
                 <img
-                  src={originalImageUrl(id)}
+                  key={photo}
+                  src={originalImageUrl(id, photo)}
                   alt="cabinet"
                   draggable={false}
                   className={`block select-none ${imgMax}`}
@@ -264,7 +312,7 @@ export default function InspectionViewer({ id, result, highlight, pinned, onHove
                     onMouseLeave={() => onHover(null)}
                   >
                     {layers.detections &&
-                      result.actual.detections.map((d, i) => (
+                      result.actual.detections.filter((d) => (d.photo ?? 0) === photo).map((d, i) => (
                         <rect
                           key={`d-${i}`}
                           x={d.bbox[0]}

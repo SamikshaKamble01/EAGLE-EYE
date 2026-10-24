@@ -23,19 +23,26 @@ def _put_label(img, text, x, y, color, scale=0.5):
     cv2.putText(img, text, (x + 2, y - 3), font, scale, (255, 255, 255), thick, cv2.LINE_AA)
 
 
-def _problems(result: dict) -> list[dict]:
-    """Check-sheet rows that need proof: every FAIL and WARN that has a place on the photo."""
-    return [i for i in result.get("checklist", []) if i["result"] != "PASS" and i.get("bbox")]
+def _problems(result: dict, photo: int = 0) -> list[dict]:
+    """Check-sheet rows that need proof on this photo: every FAIL and WARN with a box."""
+    return [i for i in result.get("checklist", [])
+            if i["result"] != "PASS" and i.get("bbox") and (i.get("photo") or 0) == photo]
 
 
-def annotate_image(image: np.ndarray, vision: dict, rule_result: dict, out_path: Path) -> Path:
+def _on(photo: int):
+    return lambda x: (x.get("photo") or 0) == photo
+
+
+def annotate_image(image: np.ndarray, vision: dict, rule_result: dict, out_path: Path, photo: int = 0) -> Path:
     """Blue = detected component, green = label OK, red box with #number = FAIL on the
-    check sheet (grey = note). The number is the row of the check sheet."""
+    check sheet (grey = note). The number is the row of the check sheet.
+    Only what was found on photo number `photo` is drawn."""
     img = image.copy()
     scale = max(img.shape[:2]) / 1600.0
     thick = max(2, int(round(2 * scale)))
+    here = _on(photo)
 
-    for det in vision.get("detections", []):
+    for det in filter(here, vision.get("detections", [])):
         x1, y1, x2, y2 = det["bbox"]
         cv2.rectangle(img, (x1, y1), (x2, y2), _BLUE, thick)
         if vision.get("typed"):
@@ -43,7 +50,7 @@ def annotate_image(image: np.ndarray, vision: dict, rule_result: dict, out_path:
 
     def draw(checks, key):
         for c in checks:
-            if not c.get("bbox"):
+            if not c.get("bbox") or not here(c):
                 continue
             x1, y1, x2, y2 = c["bbox"]
             ok = c["status"] == "ok"
@@ -55,7 +62,7 @@ def annotate_image(image: np.ndarray, vision: dict, rule_result: dict, out_path:
     draw(rule_result.get("components", []), "tag")
     draw(rule_result.get("wire_labels", []), "label")
 
-    for it in _problems(rule_result):
+    for it in _problems(rule_result, photo):
         x1, y1, x2, y2 = it["bbox"]
         color = _RED if it["result"] == "FAIL" else _GREY
         cv2.rectangle(img, (x1 - 6, y1 - 6), (x2 + 6, y2 + 6), color, thick + 1)
@@ -73,13 +80,20 @@ def annotate_image(image: np.ndarray, vision: dict, rule_result: dict, out_path:
     return out_path
 
 
-def save_snippets(image: np.ndarray, checklist: list[dict], out_dir: Path) -> int:
-    """Zoomed crop of the photo for every FAIL / WARN row; sets item["snippet"] to the file name."""
-    H, W = image.shape[:2]
+def save_snippets(images, checklist: list[dict], out_dir: Path) -> int:
+    """Zoomed crop of the photo for every FAIL / WARN row; sets item["snippet"] to the file name.
+    `images` is one photo or the list of photos (item["photo"] picks the photo)."""
+    if isinstance(images, np.ndarray):
+        images = [images]
     saved = 0
     for it in checklist:
         if it["result"] == "PASS" or not it.get("bbox"):
             continue
+        photo = it.get("photo") or 0
+        if photo >= len(images):
+            continue
+        image = images[photo]
+        H, W = image.shape[:2]
         x1, y1, x2, y2 = it["bbox"]
         pad = max(24, int(0.35 * max(x2 - x1, y2 - y1)))
         cx1, cy1, cx2, cy2 = max(0, x1 - pad), max(0, y1 - pad), min(W, x2 + pad), min(H, y2 + pad)
@@ -206,15 +220,23 @@ _RESULT_COLORS = {"PASS": colors.HexColor("#2e7d32"), "FAIL": colors.HexColor("#
                   "WARN": colors.HexColor("#b26a00")}
 
 
-def _fit_image(path: Path, max_w: float, max_h: float) -> Image:
+def _fit_image(path: Path, max_w: float, max_h: float, max_px: int = 1800) -> Image:
+    """Big phone photos are embedded as a smaller JPEG copy: same look on paper,
+    a fraction of the time and file size."""
     img = cv2.imread(str(path))
     h, w = img.shape[:2]
+    if max(h, w) > max_px:
+        k = max_px / max(h, w)
+        small = cv2.resize(img, None, fx=k, fy=k, interpolation=cv2.INTER_AREA)
+        path = Path(path).with_name(Path(path).stem + "_print.jpg")
+        cv2.imwrite(str(path), small, [cv2.IMWRITE_JPEG_QUALITY, 85])
     ratio = min(max_w / w, max_h / h)
     return Image(str(path), width=w * ratio, height=h * ratio)
 
 
 def build_pdf_report(inspection_id: str, cabinet_name: str, result: dict,
-                     annotated_path: Path | None, out_path: Path, snippet_dir: Path | None = None) -> Path:
+                     annotated_path, out_path: Path, snippet_dir: Path | None = None) -> Path:
+    """annotated_path: one marked-up photo or a list of them (one per uploaded photo)."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
     styles = getSampleStyleSheet()
     small = ParagraphStyle("small", parent=styles["BodyText"], fontSize=8, leading=10)
@@ -323,10 +345,13 @@ def build_pdf_report(inspection_id: str, cabinet_name: str, result: dict,
                                        ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4)]))
             story += [KeepTogether(block), Spacer(1, 5)]
 
-    if annotated_path and Path(annotated_path).exists():
+    marked = annotated_path if isinstance(annotated_path, (list, tuple)) else [annotated_path]
+    marked = [Path(p) for p in marked if p and Path(p).exists()]
+    for n, p in enumerate(marked, 1):
         story.append(PageBreak())
-        story.append(Paragraph("Marked-up photo (red #numbers = rows of the check sheet)", styles["Heading2"]))
-        story.append(_fit_image(Path(annotated_path), 180 * mm, 230 * mm))
+        title = "Marked-up photo" + (f" {n} of {len(marked)}" if len(marked) > 1 else "")
+        story.append(Paragraph(f"{title} (red #numbers = rows of the check sheet)", styles["Heading2"]))
+        story.append(_fit_image(p, 180 * mm, 230 * mm))
 
     doc.build(story)
     return out_path

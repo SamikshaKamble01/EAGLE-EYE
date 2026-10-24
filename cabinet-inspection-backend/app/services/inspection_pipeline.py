@@ -35,13 +35,33 @@ def run_inspection(inspection_id: str, cabinet_name: str, paths: dict, cfg: dict
         timings[name] = round((time.perf_counter() - t0) * 1000)
         return value
 
-    expected_components = timed("pdf", pdf_service.parse_expected_components, paths["pdf"])
-    expected_wiring = timed("excel", excel_service.parse_expected_wiring, paths["excel"])
-    image = timed("load_image", load_image, paths["image"])
-    vision = timed("vision", vision_service.detect_components, image,
-                   cfg["YOLO_MODEL_PATH"], cfg["VISION_CONF_THRESHOLD"])
-    ocr = timed("ocr", ocr_service.read_labels, image, cfg["OCR_ENGINE"],
-                cfg["TESSERACT_CMD"], cfg["OCR_MIN_CONFIDENCE"])
+    # the drawing is read in a separate process while the photos are OCR'd (a big CAD drawing
+    # set takes ~20 s of pure-Python parsing); parsed drawings are also cached by content
+    cache_dir = Path(cfg["STORAGE_DIR"]) / "cache" if cfg.get("STORAGE_DIR") else None
+    pdf_job = pdf_service.parse_in_background(Path(paths["pdf"]), cache_dir)
+    # the wire list is optional: without it there are no ferrule rows on the check sheet
+    expected_wiring = (timed("excel", excel_service.parse_expected_wiring, paths["excel"])
+                       if paths.get("excel") else {"wires": [], "labels": []})
+
+    # several photos of the same cabinet (front, rear, close-ups) are read one by one;
+    # every detection / label keeps the number of the photo it came from
+    photo_paths = paths.get("images") or [paths["image"]]
+    images = timed("load_image", lambda: [load_image(p) for p in photo_paths])
+    vision = {"backend": None, "typed": False, "detections": []}
+    ocr = {"engine": None, "texts": []}
+    for n, image in enumerate(images):
+        v = timed(f"vision_{n + 1}" if len(images) > 1 else "vision", vision_service.detect_components, image,
+                  cfg["YOLO_MODEL_PATH"], cfg["VISION_CONF_THRESHOLD"])
+        o = timed(f"ocr_{n + 1}" if len(images) > 1 else "ocr", ocr_service.read_labels, image, cfg["OCR_ENGINE"],
+                  cfg["TESSERACT_CMD"], cfg["OCR_MIN_CONFIDENCE"],
+                  cfg.get("OCR_ROTATIONS", "0"), cfg.get("OCR_TILES", False))
+        vision.update(backend=v["backend"], typed=v["typed"])
+        vision["detections"] += [{**d, "photo": n} for d in v["detections"]]
+        ocr["engine"] = o["engine"]
+        ocr["texts"] += [{**t, "photo": n} for t in o["texts"]]
+    expected_components = pdf_job.result()
+    # time the drawing took in the background (0 = read from the cache); it overlapped the OCR
+    timings["pdf"] = pdf_job.parse_ms
 
     rules = rule_engine.RuleConfig(
         tag_pattern=cfg["TAG_PATTERN"],
@@ -53,10 +73,12 @@ def run_inspection(inspection_id: str, cabinet_name: str, paths: dict, cfg: dict
     result["engines"] = {"vision": vision["backend"], "ocr": ocr["engine"]}
     result["expected"] = {"components": expected_components, "wiring": expected_wiring["wires"]}
     result["actual"] = {"detections": vision["detections"], "ocr_texts": ocr["texts"]}
+    result["photos"] = [{"index": n, "name": Path(p).name.split("__", 1)[-1], "width": im.shape[1], "height": im.shape[0]}
+                        for n, (p, im) in enumerate(zip(photo_paths, images))]
 
     # ---- QC check sheet: every plug-in in app/checks/ adds its rows -------
     ctx = checks.CheckContext(expected_components, expected_wiring, vision, ocr, result,
-                              image_size=(image.shape[1], image.shape[0]))
+                              image_size={n: (im.shape[1], im.shape[0]) for n, im in enumerate(images)})
     sheet = timed("checks", checks.run_all, ctx)
     checks.apply_to_result(result, sheet)
 
@@ -72,9 +94,12 @@ def run_inspection(inspection_id: str, cabinet_name: str, paths: dict, cfg: dict
         }
 
     snippet_dir = out_dir / "snippets"
-    timed("snippets", report_service.save_snippets, image, sheet, snippet_dir)
-    annotated = timed("annotate", report_service.annotate_image, image, vision, result,
-                      out_dir / f"{inspection_id}_annotated.png")
+    timed("snippets", report_service.save_snippets, images, sheet, snippet_dir)
+    annotated = timed("annotate", lambda: [
+        report_service.annotate_image(im, vision, result,
+                                      out_dir / (f"{inspection_id}_annotated.png" if n == 0 else f"{inspection_id}_annotated_{n + 1}.png"),
+                                      photo=n)
+        for n, im in enumerate(images)])
     report = timed("report", report_service.build_pdf_report, inspection_id, cabinet_name,
                    result, annotated, out_dir / f"{inspection_id}_report.pdf", snippet_dir)
     timed("checklist_xlsx", report_service.build_checklist_xlsx, inspection_id, cabinet_name,
@@ -82,4 +107,5 @@ def run_inspection(inspection_id: str, cabinet_name: str, paths: dict, cfg: dict
 
     result["timings_ms"] = timings
     log.info("Inspection %s -> %s (%.1f%%) in %s", inspection_id, result["verdict"], result["score"], timings)
-    return {"result": result, "annotated_path": annotated, "report_path": report}
+    return {"result": result, "annotated_path": annotated[0], "annotated_paths": annotated,
+            "image_paths": [str(p) for p in photo_paths], "report_path": report}

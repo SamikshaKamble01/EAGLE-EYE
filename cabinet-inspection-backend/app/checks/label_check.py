@@ -14,7 +14,7 @@ def run(ctx: CheckContext) -> list[dict]:
         if status == "label_mismatch":
             d = ctx.defect("LABEL_MISMATCH", tag) or {}
             items.append(item(tag, what, tag, c.get("read_as") or "?", False, code="LABEL_MISMATCH",
-                              message=d.get("message", f"Expected label '{tag}'."), bbox=c.get("bbox"),
+                              message=d.get("message", f"Expected label '{tag}'."), bbox=c.get("bbox"), photo=c.get("photo"),
                               fix=f"Replace the label '{c.get('read_as') or '?'}' on this {kind} with '{tag}'."))
         elif status == "label_missing":
             d = ctx.defect("LABEL_MISSING", tag) or {}
@@ -22,5 +22,5 @@ def run(ctx: CheckContext) -> list[dict]:
                               message=d.get("message", f"Label '{tag}' could not be read."),
                               fix=f"Fit a readable label '{tag}' on the {kind}."))
         else:
-            items.append(item(tag, what, tag, c.get("read_as") or tag, True, bbox=c.get("bbox")))
+            items.append(item(tag, what, tag, c.get("read_as") or tag, True, bbox=c.get("bbox"), photo=c.get("photo")))
     return items

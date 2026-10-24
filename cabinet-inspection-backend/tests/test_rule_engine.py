@@ -42,12 +42,12 @@ class RuleEngineTests(unittest.TestCase):
     def test_missing_mismatch_and_unexpected(self):
         r = evaluate(COMPONENTS, WIRING, UNTYPED, ocr(
             ("Q1", [0, 0, 1, 1]), ("K7", [2, 0, 3, 1]),        # K1 mislabelled, K2 missing
-            ("101", [0, 5, 1, 6]), ("X9", [9, 9, 10, 10])))     # 102 missing, X9 undocumented
+            ("101", [0, 5, 1, 6]), ("Q9", [9, 9, 10, 10])))     # 102 missing, Q9 undocumented
         self.assertEqual(r["verdict"], "FAIL")
         self.assertEqual(codes(r), [
             ("COMPONENT_MISSING", "K2"),
             ("LABEL_MISMATCH", "K1"),
-            ("UNEXPECTED_LABEL", "X9"),
+            ("UNEXPECTED_LABEL", "Q9"),
             ("WIRE_LABEL_MISSING", "102"),
         ])
 
@@ -58,7 +58,7 @@ class RuleEngineTests(unittest.TestCase):
 
     def test_minor_only_is_pass(self):
         r = evaluate(COMPONENTS, {"labels": [], "wires": []}, UNTYPED, ocr(
-            ("Q1", [0, 0, 1, 1]), ("K1", [2, 0, 3, 1]), ("K2", [4, 0, 5, 1]), ("X5", [6, 0, 7, 1])))
+            ("Q1", [0, 0, 1, 1]), ("K1", [2, 0, 3, 1]), ("K2", [4, 0, 5, 1]), ("K5", [6, 0, 7, 1])))   # K5: a K device no document lists
         self.assertEqual(r["verdict"], "PASS")
         self.assertEqual(r["summary"]["minor"], 1)
 

@@ -21,6 +21,7 @@ export interface ComponentCheck {
   status: string; // ok | missing | label_mismatch | label_missing | type_mismatch
   read_as: string | null;
   bbox: BBox | null;
+  photo?: number | null; // which uploaded photo the box is on (0-based)
   detected_type: string | null;
 }
 
@@ -29,6 +30,7 @@ export interface WireCheck {
   status: string; // ok | missing | mismatch
   read_as: string | null;
   bbox: BBox | null;
+  photo?: number | null;
 }
 
 export interface Detection {
@@ -36,6 +38,7 @@ export interface Detection {
   class_name: string;
   confidence: number;
   bbox: BBox;
+  photo?: number;
 }
 
 export interface OcrText {
@@ -43,6 +46,7 @@ export interface OcrText {
   raw: string;
   confidence: number;
   bbox: BBox;
+  photo?: number;
 }
 
 /** One row of the QC check sheet (made by a plug-in in the backend's app/checks/). */
@@ -61,6 +65,7 @@ export interface ChecklistItem {
   message: string;
   fix?: string; // how it should be assembled (empty for PASS; absent on older inspections)
   bbox: BBox | null;
+  photo?: number | null;
   bbox_estimated: boolean; // true = "the place where it was expected" (item is missing)
   snippet: string | null; // file name of the zoomed proof picture
   change: "closed" | "open" | "new" | null; // only set on a re-check
@@ -117,6 +122,7 @@ export interface InspectionResult {
   timings_ms: Record<string, number>;
   // absent on inspections saved before the check sheet existed
   checklist?: ChecklistItem[];
+  photos?: { index: number; name: string; width: number; height: number }[];
   checks?: CheckSummary[];
   recheck?: Recheck;
 }

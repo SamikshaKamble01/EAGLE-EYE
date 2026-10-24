@@ -56,17 +56,17 @@ class CheckContext:
         return next((d for d in self.core.get("defects", [])
                      if d["code"] == code and d["item"] == item_name), None)
 
-    def device_box(self, bbox):
+    def device_box(self, bbox, photo: int | None = 0):
         """Box of the whole device a label sits on (falls back to the label box)."""
         if not bbox:
             return None
-        det = locate(self.vision.get("detections", []), bbox)
+        det = locate(self.vision.get("detections", []), bbox, photo or 0)
         return det["bbox"] if det else bbox
 
 
 def item(name, description: str, expected, found, ok: bool, *, severity: str = "major",
          code: str | None = None, message: str = "", bbox=None, estimated: bool = False,
-         warn: bool = False, key: str | None = None, fix: str = "") -> dict:
+         warn: bool = False, key: str | None = None, fix: str = "", photo: int | None = None) -> dict:
     """One row of the check sheet."""
     return {
         "key": key or str(name),
@@ -80,6 +80,7 @@ def item(name, description: str, expected, found, ok: bool, *, severity: str = "
         "message": "" if ok else message,
         "fix": "" if ok else fix,                 # how it should be assembled
         "bbox": [int(v) for v in bbox] if bbox else None,
+        "photo": (photo or 0) if bbox else None,              # which uploaded photo the box is on
         "bbox_estimated": bool(estimated and bbox),
     }
 
@@ -103,13 +104,28 @@ def place(before: str | None, after: str | None) -> str:
     return ""
 
 
-def estimate_gap(ordered: list[tuple[str, list | None]], index: int, image_size=None):
+def estimate_gap(ordered: list[tuple], index: int, image_size=None):
     """Box of the empty place where ordered[index] was expected: the gap between
-    its nearest located neighbours (same row), else the spot next to one of them."""
-    prev = next((b for _, b in reversed(ordered[:index]) if b), None)
-    nxt = next((b for _, b in ordered[index + 1:] if b), None)
-    if not prev and not nxt:
-        return None
+    its nearest located neighbours (same row, same photo), else the spot next to
+    one of them. `ordered` holds (name, box) or (name, box, photo).
+    Returns (box, photo) - box is None when no neighbour was located."""
+    def entry(e):
+        return e[1], (e[2] if len(e) > 2 else 0) or 0
+
+    located = [(i, *entry(e)) for i, e in enumerate(ordered) if e[1]]
+    before = [x for x in located if x[0] < index]
+    after = [x for x in located if x[0] > index]
+    prev_e = before[-1] if before else None
+    next_e = after[0] if after else None
+    if prev_e and next_e and prev_e[2] != next_e[2]:
+        next_e = None                       # neighbours on different photos: only one of them counts
+    if not prev_e and not next_e:
+        return None, None
+    photo = (prev_e or next_e)[2]
+    prev = prev_e[1] if prev_e else None
+    nxt = next_e[1] if next_e else None
+    if isinstance(image_size, dict):
+        image_size = image_size.get(photo)
 
     def beside(box, direction):
         w = box[2] - box[0]
@@ -133,7 +149,7 @@ def estimate_gap(ordered: list[tuple[str, list | None]], index: int, image_size=
     if image_size:
         w, h = image_size
         box = [max(0, box[0]), max(0, box[1]), min(w - 1, box[2]), min(h - 1, box[3])]
-    return box if box[2] - box[0] > 4 and box[3] - box[1] > 4 else None
+    return (box, photo) if box[2] - box[0] > 4 and box[3] - box[1] > 4 else (None, None)
 
 
 # --------------------------------------------------------------------------- #

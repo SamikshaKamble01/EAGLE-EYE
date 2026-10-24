@@ -278,7 +278,7 @@ export default function History() {
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-raised">
+              <thead className="border-b border-line bg-raised">
                 <tr>
                   <th className="th w-10">
                     <input type="checkbox" className="cursor-pointer accent-sky-500" checked={allVisibleSelected} onChange={togglePage} aria-label="Select all on this page" />
@@ -307,10 +307,11 @@ export default function History() {
                         aria-label={`Select ${i.cabinet_name || "inspection"}`}
                       />
                     </td>
-                    <td className="td whitespace-nowrap text-muted" title={formatDate(i.created_at)}>
-                      {timeAgo(i.created_at)}
+                    <td className="td whitespace-nowrap" title={formatDate(i.created_at)}>
+                      <div className="font-medium text-ink">{timeAgo(i.created_at)}</div>
+                      <div className="mt-0.5 text-xs text-faint">{formatDate(i.created_at)}</div>
                     </td>
-                    <td className="td font-medium">
+                    <td className="td font-semibold">
                       {i.cabinet_name || <span className="text-faint">Unnamed</span>}
                       {i.round > 1 && (
                         <span className="ml-2 rounded-full bg-sky-500/15 px-2 py-0.5 text-[11px] font-bold text-sky-600 dark:text-sky-400">Re-check {i.round - 1}</span>
@@ -322,7 +323,7 @@ export default function History() {
                     <td className="td">
                       <ScoreBar score={i.score} />
                     </td>
-                    <td className="td font-mono text-xs text-faint">{i.id.slice(0, 8)}</td>
+                    <td className="td font-mono text-xs text-muted">{i.id.slice(0, 8)}</td>
                     <td className="td text-right">
                       <button
                         title="Delete"
