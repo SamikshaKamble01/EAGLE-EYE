@@ -1,15 +1,21 @@
-"""Vision Service -> AI detects components in the cabinet photo.
+"""Vision Service -> detects components in the cabinet photo.
 
 Backends
 --------
-yolo   : used when YOLO_MODEL_PATH points to a trained .pt file and the
-         `ultralytics` package is installed. Returns typed detections
-         (contactor, circuit_breaker, ...) - this is the real AI path.
-opencv : fallback with no training needed. Finds rectangular component bodies
-         with contour analysis. It locates components but cannot tell their
-         type, so the rule engine then relies on the OCR tags for identity.
+yolo   : used when YOLO_MODEL_PATH points to a .pt file, `ultralytics` is installed AND
+         the model has classes that are cabinet components (circuit breaker, contactor,
+         relay, terminal block, fuse, switch, indicator lamp, label ...). Big photos are
+         cut into overlapping tiles, every tile is run through the model, boxes are
+         mapped back to the original photo and duplicates are merged.
+opencv : fallback with no training needed. Finds rectangular component bodies with
+         contour analysis. It locates components but cannot tell their type, so the
+         rule engine then relies on the OCR tags for identity.
 
-Each detection: {"type", "class_name", "confidence", "bbox": [x1,y1,x2,y2]}
+A model trained on everyday objects (e.g. the official COCO weights) loads fine but has
+no cabinet classes - it is reported as such and the OpenCV fallback is used. Detections
+are never invented.
+
+Each detection: {"type", "class_name", "confidence", "bbox": [x1,y1,x2,y2]}  (photo pixels)
 """
 import logging
 from functools import lru_cache
@@ -22,19 +28,151 @@ from app.utils.text import canonical_type
 
 log = logging.getLogger(__name__)
 
+# the component classes the detector pipeline is prepared for (custom weights can add more)
+COMPONENT_CLASSES = ("circuit_breaker", "contactor", "relay", "terminal_block", "fuse",
+                     "switch", "indicator_lamp", "label")
+# other cabinet devices a custom model may also know; kept as typed detections
+_OTHER_DEVICE_TYPES = {"power_supply", "plc", "vfd", "timer", "transformer", "energy_meter", "surge_protector"}
+
 
 # --------------------------------------------------------------------------- #
-# YOLO
+# class names -> component types
 # --------------------------------------------------------------------------- #
-@lru_cache(maxsize=2)
-def _load_yolo(model_path: str):
-    from ultralytics import YOLO  # optional dependency
-    return YOLO(model_path)
+def parse_class_map(text: str | None) -> dict[str, str]:
+    """YOLO_CLASS_MAP='mcb=circuit_breaker,km=contactor' -> {'mcb': 'circuit_breaker', ...}"""
+    out = {}
+    for part in (text or "").split(","):
+        if "=" in part:
+            k, v = part.split("=", 1)
+            if k.strip() and v.strip():
+                out[k.strip().lower()] = v.strip().lower()
+    return out
 
 
-def _yolo_available(model_path: str) -> bool:
-    if not model_path or not Path(model_path).is_file():
-        return False
+def component_type(class_name: str, class_map: dict[str, str] | None = None) -> str | None:
+    """Model class name -> component type, or None when it is not a cabinet component
+    (e.g. 'person' or 'car' from COCO weights)."""
+    name = (class_name or "").strip().lower()
+    if class_map and name in class_map:
+        return class_map[name]
+    words = name.replace("_", " ").replace("-", " ")
+    if any(w in words for w in ("label", "tag", "marker", "nameplate", "ferrule")):
+        return "label"
+    if any(w in words for w in ("switch", "selector", "push button", "pushbutton")):
+        return "switch"
+    ctype = canonical_type(words)
+    if ctype == "overload_relay":
+        return "relay"
+    if ctype == "push_button":
+        return "switch"
+    if ctype in COMPONENT_CLASSES or ctype in _OTHER_DEVICE_TYPES:
+        return ctype
+    return None
+
+
+# --------------------------------------------------------------------------- #
+# tiling and duplicate merging (pure functions, unit tested)
+# --------------------------------------------------------------------------- #
+def tile_grid(width: int, height: int, tile: int, overlap: float) -> list[tuple[int, int, int, int]]:
+    """Overlapping tiles (x1, y1, x2, y2) that cover the whole image; the last tile of a row /
+    column is aligned to the image edge so no strip is left out."""
+    tile = max(64, int(tile))
+    step = max(1, int(tile * (1 - min(max(overlap, 0.0), 0.9))))
+
+    def starts(size):
+        if size <= tile:
+            return [0]
+        s = list(range(0, size - tile + 1, step))
+        if s[-1] != size - tile:
+            s.append(size - tile)
+        return s
+
+    return [(x, y, min(width, x + tile), min(height, y + tile)) for y in starts(height) for x in starts(width)]
+
+
+def _iou(a, b) -> float:
+    ix = max(0, min(a[2], b[2]) - max(a[0], b[0]))
+    iy = max(0, min(a[3], b[3]) - max(a[1], b[1]))
+    inter = ix * iy
+    if inter == 0:
+        return 0.0
+    area = lambda r: max(1, (r[2] - r[0]) * (r[3] - r[1]))
+    return inter / float(area(a) + area(b) - inter)
+
+
+def _containment(a, b) -> float:
+    """Share of the smaller box that lies inside the other one."""
+    ix = max(0, min(a[2], b[2]) - max(a[0], b[0]))
+    iy = max(0, min(a[3], b[3]) - max(a[1], b[1]))
+    smaller = min((a[2] - a[0]) * (a[3] - a[1]), (b[2] - b[0]) * (b[3] - b[1]))
+    return (ix * iy) / smaller if smaller > 0 else 0.0
+
+
+def merge_detections(detections: list[dict], iou_thr: float = 0.5, contain_thr: float = 0.7) -> list[dict]:
+    """Class-aware non-maximum suppression across tiles. Overlapping boxes of the same class
+    are one object: a heavily overlapping duplicate is dropped; a device cut by a tile edge
+    (one box mostly inside the other) is merged into one box covering both parts."""
+    kept: list[dict] = []
+    for d in sorted(detections, key=lambda d: -d["confidence"]):
+        for k in kept:
+            if k["type"] != d["type"]:
+                continue
+            # one box (mostly) inside the other: the same object, one view clipped by a tile edge
+            if _containment(k["bbox"], d["bbox"]) > contain_thr:
+                k["bbox"] = [min(k["bbox"][0], d["bbox"][0]), min(k["bbox"][1], d["bbox"][1]),
+                             max(k["bbox"][2], d["bbox"][2]), max(k["bbox"][3], d["bbox"][3])]
+                break
+            if _iou(k["bbox"], d["bbox"]) > iou_thr:          # plain duplicate
+                break
+        else:
+            kept.append(dict(d))
+    return kept
+
+
+def detect_tiled(image: np.ndarray, predict, tile: int = 1280, overlap: float = 0.2,
+                 class_map: dict[str, str] | None = None, iou_thr: float = 0.5, batch: int = 4) -> tuple[list[dict], int]:
+    """Run `predict` on overlapping tiles and map the boxes back to the photo.
+    predict(list_of_crops) -> one list per crop of (class_name, confidence, [x1, y1, x2, y2]) in
+    crop pixels. Returns (merged detections, number of tiles)."""
+    h, w = image.shape[:2]
+    tiles = tile_grid(w, h, tile, overlap) if max(h, w) > tile * 1.15 else [(0, 0, w, h)]
+    raw = []
+    for i in range(0, len(tiles), batch):
+        group = tiles[i:i + batch]
+        crops = [image[y1:y2, x1:x2] for x1, y1, x2, y2 in group]      # views, no copies
+        for (x1, y1, x2, y2), found in zip(group, predict(crops)):
+            for class_name, conf, box in found:
+                ctype = component_type(class_name, class_map)
+                if ctype is None:                                     # not a cabinet component
+                    continue
+                bx1, by1, bx2, by2 = box
+                raw.append({"type": ctype, "class_name": class_name, "confidence": round(float(conf), 3),
+                            "bbox": [int(max(0, bx1 + x1)), int(max(0, by1 + y1)),
+                                     int(min(w, bx2 + x1)), int(min(h, by2 + y1))]})
+    return merge_detections(raw, iou_thr), len(tiles)
+
+
+def summarize(detections: list[dict], height: int, bands: int = 4) -> dict:
+    """Counts per class for the whole photo and per horizontal band R1..R4 (top to bottom)."""
+    def count(items):
+        out: dict[str, int] = {}
+        for d in items:
+            out[d["type"]] = out.get(d["type"], 0) + 1
+        return out
+
+    band_h = max(1, height / bands)
+    regions = []
+    for b in range(bands):
+        inside = [d for d in detections if int(((d["bbox"][1] + d["bbox"][3]) / 2) // band_h) == b]
+        regions.append({"id": f"R{b + 1}", "y1": int(b * band_h), "y2": int((b + 1) * band_h),
+                        "total": len(inside), "by_class": count(inside)})
+    return {"total": len(detections), "by_class": count(detections), "regions": regions}
+
+
+# --------------------------------------------------------------------------- #
+# YOLO model (loaded once per weights file, reused by every request)
+# --------------------------------------------------------------------------- #
+def _ultralytics_installed() -> bool:
     try:
         import ultralytics  # noqa: F401
         return True
@@ -42,20 +180,49 @@ def _yolo_available(model_path: str) -> bool:
         return False
 
 
-def _detect_yolo(image: np.ndarray, model_path: str, conf: float) -> list[dict]:
-    model = _load_yolo(model_path)
-    result = model.predict(image, conf=conf, verbose=False)[0]
-    detections = []
-    for box in result.boxes:
-        cls_name = result.names[int(box.cls[0])]
-        ctype = canonical_type(cls_name)
-        detections.append({
-            "type": ctype if ctype != "unknown" else cls_name.lower(),
-            "class_name": cls_name,
-            "confidence": round(float(box.conf[0]), 3),
-            "bbox": [int(v) for v in box.xyxy[0].tolist()],
-        })
-    return detections
+@lru_cache(maxsize=2)
+def _load_yolo(model_path: str):
+    from ultralytics import YOLO  # optional dependency
+    model = YOLO(model_path)
+    log.info("YOLO weights loaded once from %s (%d classes)", model_path, len(model.names))
+    return model
+
+
+def yolo_status(model_path: str, class_map: dict[str, str] | None = None) -> dict:
+    """Why YOLO is / is not used. Never raises."""
+    if not model_path:
+        return {"active": False, "state": "not_configured", "note": "YOLO_MODEL_PATH is not set."}
+    if not Path(model_path).is_file():
+        return {"active": False, "state": "weights_missing", "note": f"Weights file not found: {model_path}"}
+    if not _ultralytics_installed():
+        return {"active": False, "state": "ultralytics_missing", "note": "pip install ultralytics to use YOLO."}
+    try:
+        model = _load_yolo(model_path)
+    except Exception as exc:                                   # corrupt / incompatible weights
+        return {"active": False, "state": "load_failed", "note": f"Could not load the weights: {exc}"}
+    names = [str(n) for n in model.names.values()]
+    usable = {n: component_type(n, class_map) for n in names}
+    usable = {n: t for n, t in usable.items() if t}
+    base = {"model": Path(model_path).name, "classes": names, "component_classes": usable}
+    if not usable:
+        sample = ", ".join(names[:5])
+        return {**base, "active": False, "state": "no_component_classes",
+                "note": f"The weights load ({len(names)} classes, e.g. {sample}) but none of them is a cabinet "
+                        f"component, so they cannot detect breakers, contactors etc. A custom-trained model is needed."}
+    return {**base, "active": True, "state": "active", "note": f"YOLO active with {len(usable)} component classes."}
+
+
+def _yolo_predict(model, conf: float, imgsz: int, iou: float, device: str):
+    def predict(crops):
+        results = model.predict(crops, conf=conf, imgsz=imgsz, iou=iou, verbose=False, device=device or None)
+        out = []
+        for r in results:
+            found = []
+            for box in r.boxes:
+                found.append((r.names[int(box.cls[0])], float(box.conf[0]), [float(v) for v in box.xyxy[0].tolist()]))
+            out.append(found)
+        return out
+    return predict
 
 
 # --------------------------------------------------------------------------- #
@@ -116,20 +283,31 @@ def _detect_opencv(image: np.ndarray) -> list[dict]:
 # --------------------------------------------------------------------------- #
 # Public API
 # --------------------------------------------------------------------------- #
-def backend_status(model_path: str) -> dict:
-    if _yolo_available(model_path):
-        return {"available": True, "backend": "yolo", "model": model_path}
-    reason = "YOLO_MODEL_PATH not set" if not model_path else (
-        "model file not found" if not Path(model_path).is_file() else "ultralytics not installed")
-    return {"available": True, "backend": "opencv", "note": f"Fallback detector in use ({reason})."}
+def backend_status(model_path: str, class_map_text: str = "") -> dict:
+    """Used by /api/health and at startup."""
+    status = yolo_status(model_path, parse_class_map(class_map_text))
+    if status["active"]:
+        return {"available": True, "backend": "yolo", "yolo": status}
+    return {"available": True, "backend": "opencv", "yolo": status,
+            "note": f"OpenCV fallback detector in use. {status['note']}"}
 
 
-def detect_components(image: np.ndarray, model_path: str = "", conf: float = 0.4) -> dict:
-    if _yolo_available(model_path):
-        detections = [d for d in _detect_yolo(image, model_path, conf) if d["confidence"] >= conf]
-        backend, typed = "yolo", True
-    else:
-        detections = _detect_opencv(image)
-        backend, typed = "opencv", False
-    log.info("Vision (%s): %d detections", backend, len(detections))
-    return {"backend": backend, "typed": typed, "detections": detections}
+def detect_components(image: np.ndarray, model_path: str = "", conf: float = 0.4, *, imgsz: int = 1024,
+                      tile: int = 1280, overlap: float = 0.2, iou: float = 0.5, device: str = "",
+                      class_map_text: str = "") -> dict:
+    class_map = parse_class_map(class_map_text)
+    status = yolo_status(model_path, class_map)
+    h = image.shape[0]
+    if status["active"]:
+        predict = _yolo_predict(_load_yolo(model_path), conf, imgsz, iou, device)
+        found, n_tiles = detect_tiled(image, predict, tile, overlap, class_map, iou)
+        found = [d for d in found if d["confidence"] >= conf]
+        devices = [d for d in found if d["type"] != "label"]
+        labels = [d for d in found if d["type"] == "label"]
+        log.info("Vision (yolo, %d tiles): %d devices, %d labels", n_tiles, len(devices), len(labels))
+        return {"backend": "yolo", "typed": True, "detections": devices, "labels": labels,
+                "tiles": n_tiles, "yolo": status, "summary": summarize(found, h)}
+    detections = _detect_opencv(image)
+    log.info("Vision (opencv): %d detections", len(detections))
+    return {"backend": "opencv", "typed": False, "detections": detections, "labels": [], "tiles": 1,
+            "yolo": status, "summary": summarize(detections, h)}

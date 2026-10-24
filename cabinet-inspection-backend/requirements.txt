@@ -17,5 +17,5 @@ waitress>=3.0
 pytest>=8.0
 
 # ---- Optional AI upgrades (uncomment when you need them) ----
-# ultralytics>=8.3   # YOLO component detection - set YOLO_MODEL_PATH in .env
+# ultralytics>=8.3.200   # YOLO component detection (YOLO26) - needs custom-trained weights, see scripts/train_yolo.py
 # easyocr>=1.7       # better OCR on angled / dark photos - set OCR_ENGINE=easyocr

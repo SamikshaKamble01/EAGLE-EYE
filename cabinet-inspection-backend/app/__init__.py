@@ -44,6 +44,12 @@ def create_app(config_class=Config) -> Flask:
     app.register_blueprint(health.bp)
     app.register_blueprint(inspections.bp)
 
+    # say at startup which detector will be used (loads the YOLO weights once if configured)
+    if not app.config.get("TESTING"):
+        from app.services import vision_service
+        status = vision_service.backend_status(app.config["YOLO_MODEL_PATH"], app.config.get("YOLO_CLASS_MAP", ""))
+        logging.getLogger("app").info("Vision detector: %s - %s", status["backend"], status["yolo"]["note"])
+
     @app.get("/")
     def index():
         return jsonify({"service": "cabinet-inspection-api", "docs": "/api/health"})

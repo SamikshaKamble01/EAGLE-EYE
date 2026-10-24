@@ -49,6 +49,23 @@ export interface OcrText {
   photo?: number;
 }
 
+export interface YoloStatus {
+  active: boolean;
+  state: "active" | "not_configured" | "weights_missing" | "ultralytics_missing" | "load_failed" | "no_component_classes";
+  note: string;
+  model?: string;
+  classes?: string[];
+  component_classes?: Record<string, string>;
+}
+
+export interface VisionReport {
+  backend: "yolo" | "opencv";
+  yolo: YoloStatus | null;
+  by_class: Record<string, number>;
+  photos: { photo: number; tiles: number; total: number; by_class: Record<string, number>; regions: { id: string; y1: number; y2: number; total: number }[] }[];
+  note: string;
+}
+
 /** One row of the QC check sheet (made by a plug-in in the backend's app/checks/). */
 export interface ChecklistItem {
   no: number;
@@ -118,7 +135,9 @@ export interface InspectionResult {
   wire_labels: WireCheck[];
   defects: Defect[];
   engines: { vision: string; ocr: string };
-  actual: { detections: Detection[]; ocr_texts: OcrText[] };
+  /** detector report (inspections from before the YOLO integration don't have it) */
+  vision?: VisionReport;
+  actual: { detections: Detection[]; ocr_texts: OcrText[]; label_detections?: Detection[] };
   timings_ms: Record<string, number>;
   // absent on inspections saved before the check sheet existed
   checklist?: ChecklistItem[];

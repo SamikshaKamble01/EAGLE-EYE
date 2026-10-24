@@ -601,7 +601,8 @@ export default function InspectionDetail() {
             </div>
             <dl className="grid h-fit grid-cols-2 gap-3 text-sm">
               {[
-                ["Vision engine", r.engines.vision],
+                ["Vision engine", r.engines.vision === "yolo" ? `YOLO (${r.vision?.yolo?.model ?? "model"})` : "OpenCV fallback"],
+                ["YOLO status", r.vision?.yolo ? r.vision.yolo.state.replace(/_/g, " ") : "not recorded"],
                 ["OCR engine", r.engines.ocr],
                 ["Components detected", s.detected_components],
                 ["Labels read", s.ocr_labels_read],

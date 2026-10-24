@@ -48,6 +48,8 @@ export default function InspectionViewer({ id, result, highlight, pinned, onHove
   const [dragging, setDragging] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [photo, setPhoto] = useState(0); // which of several photos is shown
+  const [band, setBand] = useState<number | null>(null); // R1..R4 filter: horizontal quarter of the photo
+  const [detection, setDetection] = useState<number | null>(null); // selected detector box
   const photos = result.photos ?? [];
 
   const card = useRef<HTMLDivElement>(null);
@@ -204,10 +206,21 @@ export default function InspectionViewer({ id, result, highlight, pinned, onHove
   };
 
   const active = highlight ?? pinned;
-  const visible = boxes.filter((b) => layers[b.kind] && b.photo === photo);
+  const inBand = (bbox: BBox) => band === null || !size || Math.min(3, Math.floor((((bbox[1] + bbox[3]) / 2) / size.h) * 4)) === band;
+  const visible = boxes.filter((b) => layers[b.kind] && b.photo === photo && inBand(b.bbox));
+  const detected = [...result.actual.detections, ...(result.actual.label_detections ?? [])].filter(
+    (d) => (d.photo ?? 0) === photo && inBand(d.bbox),
+  );
+  const selectedDetection = detection !== null ? detected[detection] : null;
+  const yolo = result.vision?.yolo;
+  const detector =
+    result.engines.vision === "yolo"
+      ? { text: `YOLO · ${yolo?.model ?? "model"}`, cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" }
+      : { text: yolo && yolo.state !== "not_configured" ? "Fallback (YOLO unavailable)" : "OpenCV fallback", cls: "bg-amber-500/15 text-amber-700 dark:text-amber-400" };
   const problemsOn = (n: number) => boxes.filter((b) => b.photo === n && b.kind !== "ok").length;
   const choosePhoto = (n: number) => {
     if (n === photo) return;
+    setDetection(null);
     setSize(null);
     setPhoto(n);
   };
@@ -219,7 +232,27 @@ export default function InspectionViewer({ id, result, highlight, pinned, onHove
   return (
     <div ref={card} className="card flex flex-col overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
-        <h2 className="mr-auto font-semibold">{photos.length > 1 ? `Cabinet photos (${photos.length})` : "Cabinet photo"}</h2>
+        <h2 className="font-semibold">{photos.length > 1 ? `Cabinet photos (${photos.length})` : "Cabinet photo"}</h2>
+        <span
+          className={`mr-auto rounded-md px-2 py-0.5 text-[11px] font-semibold ${detector.cls}`}
+          title={result.vision?.note ?? (result.engines.vision === "yolo" ? "Detections from the YOLO model" : "Untyped boxes from the OpenCV fallback detector")}
+        >
+          Detector: {detector.text}
+        </span>
+        <div className="flex rounded-lg bg-raised p-0.5 text-xs font-semibold" title="Show only one horizontal quarter of the photo">
+          {[null, 0, 1, 2, 3].map((b) => (
+            <button
+              key={String(b)}
+              onClick={() => {
+                setBand(b);
+                setDetection(null);
+              }}
+              className={`cursor-pointer rounded-md px-2 py-1 transition ${band === b ? "bg-surface text-ink shadow-sm" : "text-muted"}`}
+            >
+              {b === null ? "All" : `R${b + 1}`}
+            </button>
+          ))}
+        </div>
         <div className="flex rounded-lg bg-raised p-0.5 text-xs font-semibold">
           {(["interactive", "server"] as const).map((m) => (
             <button
@@ -312,18 +345,23 @@ export default function InspectionViewer({ id, result, highlight, pinned, onHove
                     onMouseLeave={() => onHover(null)}
                   >
                     {layers.detections &&
-                      result.actual.detections.filter((d) => (d.photo ?? 0) === photo).map((d, i) => (
+                      detected.map((d, i) => (
                         <rect
                           key={`d-${i}`}
                           x={d.bbox[0]}
                           y={d.bbox[1]}
                           width={d.bbox[2] - d.bbox[0]}
                           height={d.bbox[3] - d.bbox[1]}
-                          fill="none"
-                          stroke="#38bdf8"
-                          strokeWidth={sw * 0.75}
+                          fill={detection === i ? "#38bdf833" : "transparent"}
+                          stroke={detection === i ? "#ffffff" : "#38bdf8"}
+                          strokeWidth={detection === i ? sw * 1.6 : sw * 0.75}
                           strokeDasharray={`${sw * 4} ${sw * 3}`}
-                          opacity={active ? 0.25 : 0.7}
+                          opacity={active && detection !== i ? 0.25 : 0.8}
+                          style={{ cursor: "pointer" }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!wasDrag()) setDetection(detection === i ? null : i);
+                          }}
                         >
                           <title>{`${humanize(d.type)} · ${Math.round(d.confidence * 100)}% confidence`}</title>
                         </rect>
@@ -405,7 +443,25 @@ export default function InspectionViewer({ id, result, highlight, pinned, onHove
         )}
       </div>
 
-      {mode === "interactive" && <InfoStrip result={result} item={active} pinned={pinned !== null && active === pinned} />}
+      {mode === "interactive" && selectedDetection ? (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line bg-raised px-4 py-2 text-xs">
+          <span className="rounded bg-sky-500/15 px-1.5 py-0.5 font-semibold text-sky-600 dark:text-sky-300">Detected</span>
+          <span className="font-semibold">{humanize(selectedDetection.type)}</span>
+          <span className="text-muted">
+            class <b className="tag text-ink">{selectedDetection.class_name}</b>
+          </span>
+          <span className="text-muted">
+            confidence <b className="text-ink">{Math.round(selectedDetection.confidence * 100)}%</b>
+            {result.engines.vision !== "yolo" && " (fixed value - the fallback has no confidence)"}
+          </span>
+          <span className="font-mono text-muted">box {selectedDetection.bbox.join(", ")}</span>
+          <button onClick={() => setDetection(null)} className="ml-auto cursor-pointer text-faint hover:text-ink">
+            close
+          </button>
+        </div>
+      ) : (
+        mode === "interactive" && <InfoStrip result={result} item={active} pinned={pinned !== null && active === pinned} />
+      )}
 
       {/* the legend doubles as layer switches */}
       <div className="flex flex-wrap items-center gap-x-1 gap-y-1 border-t border-line px-3 py-2 text-xs text-muted">

@@ -35,6 +35,16 @@ class Config:
     # the file / `ultralytics` package is missing, the OpenCV fallback is used.
     YOLO_MODEL_PATH = os.getenv("YOLO_MODEL_PATH", "")
     VISION_CONF_THRESHOLD = float(os.getenv("VISION_CONF_THRESHOLD", "0.40"))
+    # Big photos are cut into overlapping tiles for YOLO (pixels / share of the tile)
+    YOLO_TILE_SIZE = int(os.getenv("YOLO_TILE_SIZE", "1280"))
+    YOLO_TILE_OVERLAP = float(os.getenv("YOLO_TILE_OVERLAP", "0.2"))
+    YOLO_IMGSZ = int(os.getenv("YOLO_IMGSZ", "1024"))          # network input size per tile
+    YOLO_IOU = float(os.getenv("YOLO_IOU", "0.5"))             # duplicate merging threshold
+    YOLO_DEVICE = os.getenv("YOLO_DEVICE", "")                  # "" = auto, "cpu", "0" = first GPU
+    # Optional: map your model's class names to component types, e.g. "mcb=circuit_breaker,km=contactor"
+    YOLO_CLASS_MAP = os.getenv("YOLO_CLASS_MAP", "")
+    # Photos bigger than this are refused (memory); a 12 MP phone photo is 12_000_000
+    MAX_IMAGE_PIXELS = int(float(os.getenv("MAX_IMAGE_PIXELS", "80000000")))
 
     # --- OCR ---------------------------------------------------------------
     OCR_ENGINE = os.getenv("OCR_ENGINE", "auto")          # auto | tesseract | easyocr

@@ -13,7 +13,7 @@ from app.services import excel_service, ocr_service, pdf_service, report_service
 log = logging.getLogger(__name__)
 
 
-def load_image(path: Path) -> np.ndarray:
+def load_image(path: Path, max_pixels: int = 80_000_000) -> np.ndarray:
     # imdecode works with non-ASCII Windows paths, unlike imread
     data = np.fromfile(str(path), dtype=np.uint8)
     image = cv2.imdecode(data, cv2.IMREAD_COLOR)
@@ -21,6 +21,9 @@ def load_image(path: Path) -> np.ndarray:
         raise ParseError("Could not decode the cabinet photo. Upload a JPG or PNG.")
     if min(image.shape[:2]) < 200:
         raise ParseError("The photo is too small (min 200 px); labels cannot be read.")
+    if image.shape[0] * image.shape[1] > max_pixels:
+        raise ParseError(f"The photo is too large ({image.shape[1]} x {image.shape[0]} px, max "
+                         f"{max_pixels / 1e6:.0f} MP). Use the phone's normal photo size.")
     return image
 
 
@@ -46,17 +49,23 @@ def run_inspection(inspection_id: str, cabinet_name: str, paths: dict, cfg: dict
     # several photos of the same cabinet (front, rear, close-ups) are read one by one;
     # every detection / label keeps the number of the photo it came from
     photo_paths = paths.get("images") or [paths["image"]]
-    images = timed("load_image", lambda: [load_image(p) for p in photo_paths])
-    vision = {"backend": None, "typed": False, "detections": []}
+    images = timed("load_image", lambda: [load_image(p, cfg.get("MAX_IMAGE_PIXELS", 80_000_000)) for p in photo_paths])
+    vision = {"backend": None, "typed": False, "detections": [], "labels": [], "yolo": None, "photos": []}
     ocr = {"engine": None, "texts": []}
     for n, image in enumerate(images):
         v = timed(f"vision_{n + 1}" if len(images) > 1 else "vision", vision_service.detect_components, image,
-                  cfg["YOLO_MODEL_PATH"], cfg["VISION_CONF_THRESHOLD"])
+                  cfg["YOLO_MODEL_PATH"], cfg["VISION_CONF_THRESHOLD"],
+                  imgsz=cfg.get("YOLO_IMGSZ", 1024), tile=cfg.get("YOLO_TILE_SIZE", 1280),
+                  overlap=cfg.get("YOLO_TILE_OVERLAP", 0.2), iou=cfg.get("YOLO_IOU", 0.5),
+                  device=cfg.get("YOLO_DEVICE", ""), class_map_text=cfg.get("YOLO_CLASS_MAP", ""))
         o = timed(f"ocr_{n + 1}" if len(images) > 1 else "ocr", ocr_service.read_labels, image, cfg["OCR_ENGINE"],
                   cfg["TESSERACT_CMD"], cfg["OCR_MIN_CONFIDENCE"],
                   cfg.get("OCR_ROTATIONS", "0"), cfg.get("OCR_TILES", False))
         vision.update(backend=v["backend"], typed=v["typed"])
         vision["detections"] += [{**d, "photo": n} for d in v["detections"]]
+        vision["labels"] += [{**d, "photo": n} for d in v.get("labels", [])]
+        vision["yolo"] = v.get("yolo")
+        vision["photos"].append({"photo": n, "tiles": v.get("tiles", 1), **v.get("summary", {})})
         ocr["engine"] = o["engine"]
         ocr["texts"] += [{**t, "photo": n} for t in o["texts"]]
     expected_components = pdf_job.result()
@@ -72,7 +81,19 @@ def run_inspection(inspection_id: str, cabinet_name: str, paths: dict, cfg: dict
 
     result["engines"] = {"vision": vision["backend"], "ocr": ocr["engine"]}
     result["expected"] = {"components": expected_components, "wiring": expected_wiring["wires"]}
-    result["actual"] = {"detections": vision["detections"], "ocr_texts": ocr["texts"]}
+    result["actual"] = {"detections": vision["detections"], "label_detections": vision["labels"],
+                        "ocr_texts": ocr["texts"]}
+    # detector report: which model ran (or why the fallback did) + counts per photo and band
+    totals: dict[str, int] = {}
+    for p in vision["photos"]:
+        for k, c in p.get("by_class", {}).items():
+            totals[k] = totals.get(k, 0) + c
+    result["vision"] = {"backend": vision["backend"], "yolo": vision["yolo"], "by_class": totals,
+                        "photos": vision["photos"],
+                        "note": ("Detections come from the YOLO model. Wiring connectivity is NOT verified by "
+                                 "object detection." if vision["backend"] == "yolo" else
+                                 "OpenCV fallback (untyped boxes): component identity comes from the OCR labels. "
+                                 + ((vision["yolo"] or {}).get("note") or ""))}
     result["photos"] = [{"index": n, "name": Path(p).name.split("__", 1)[-1], "width": im.shape[1], "height": im.shape[0]}
                         for n, (p, im) in enumerate(zip(photo_paths, images))]
 
