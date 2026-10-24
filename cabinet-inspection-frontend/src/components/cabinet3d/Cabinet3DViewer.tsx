@@ -46,6 +46,7 @@ const STATUS_TEXT: Record<DeviceStatus, string> = {
   fail: "Failed",
   warn: "Note",
   missing: "Not found in the photos",
+  unseen: "Not photographed",
   unchecked: "Not checked",
 };
 const STATUS_CLASS: Record<DeviceStatus, string> = {
@@ -53,6 +54,7 @@ const STATUS_CLASS: Record<DeviceStatus, string> = {
   fail: "bg-red-500/15 text-red-600 dark:text-red-300",
   warn: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
   missing: "bg-red-500/15 text-red-600 dark:text-red-300",
+  unseen: "bg-slate-500/15 text-slate-600 dark:text-slate-300",
   unchecked: "bg-slate-500/15 text-muted",
 };
 const DOT: Record<DeviceStatus, string> = {
@@ -60,6 +62,7 @@ const DOT: Record<DeviceStatus, string> = {
   fail: "bg-red-500",
   warn: "bg-amber-500",
   missing: "bg-red-500/40 ring-1 ring-red-500",
+  unseen: "bg-slate-400/40 ring-1 ring-slate-400",
   unchecked: "bg-slate-400",
 };
 const MAX_PHOTOS = 10;
@@ -121,7 +124,7 @@ export default function Cabinet3DViewer({ result, inspectionId, cabinetName, tit
 
   const device = layout.devices.find((d) => d.id === selected) ?? null;
   const counts = useMemo(() => {
-    const c: Record<DeviceStatus, number> = { pass: 0, fail: 0, warn: 0, missing: 0, unchecked: 0 };
+    const c: Record<DeviceStatus, number> = { pass: 0, fail: 0, warn: 0, missing: 0, unseen: 0, unchecked: 0 };
     layout.devices.forEach((d) => c[d.status]++);
     return c;
   }, [layout]);
@@ -251,7 +254,7 @@ export default function Cabinet3DViewer({ result, inspectionId, cabinetName, tit
         {/* legend */}
         {layout.fromInspection && (
           <div className="pointer-events-none absolute bottom-3 right-3 hidden flex-col gap-1 rounded-md bg-slate-900/70 px-2.5 py-2 text-[11px] text-slate-200 ring-1 ring-white/10 backdrop-blur md:flex">
-            {(["pass", "fail", "missing", "unchecked"] as DeviceStatus[]).map((s) => (
+            {(["pass", "fail", "missing", "unseen", "unchecked"] as DeviceStatus[]).filter((s) => s !== "unseen" || counts.unseen > 0).map((s) => (
               <span key={s} className="flex items-center gap-2">
                 <span className={`h-2.5 w-2.5 rounded-sm ${DOT[s]}`} />
                 {STATUS_TEXT[s]} <b className="ml-auto pl-3 tabular-nums">{counts[s]}</b>

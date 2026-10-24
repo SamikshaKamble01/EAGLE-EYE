@@ -173,6 +173,9 @@ def run_all(ctx: CheckContext) -> list[dict]:
 
 def apply_to_result(result: dict, sheet: list[dict]) -> None:
     """Put the check sheet into the result and derive verdict / score / counts from it."""
+    # devices on a side nobody photographed: drop the rule engine's "missing" defect
+    unseen = {it["item"] for it in sheet if it.get("code") == "NOT_PHOTOGRAPHED"}
+    result["defects"] = [d for d in result["defects"] if not (d["code"] == "COMPONENT_MISSING" and d["item"] in unseen)]
     known = {(d["code"], d["item"]) for d in result["defects"]}
     for it in sheet:
         if it["result"] != "PASS" and it["code"] and (it["code"], it["item"]) not in known:

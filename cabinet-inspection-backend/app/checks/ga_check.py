@@ -74,6 +74,11 @@ def run(ctx: CheckContext) -> list[dict]:
     located: list[dict] = []
     tags = [c["tag"] for c in checks]
     present = {c["tag"] for c in checks if c["status"] != "missing"}
+    # photo coverage: a side of the cabinet counts as photographed when at least one of
+    # its devices was read in a photo. Devices on sides nobody photographed are
+    # "not photographed" (a note), not "missing" (a failure).
+    view_of = {c.get("tag"): c.get("view") for c in ctx.expected_components if c.get("tag")}
+    covered = {view_of.get(t) for t in present if view_of.get(t)}
 
     for index, c in enumerate(checks):
         tag, status, box, photo = c["tag"], c["status"], boxes[index][1], boxes[index][2]
@@ -87,6 +92,12 @@ def run(ctx: CheckContext) -> list[dict]:
                               severity="critical", code="COMPONENT_TYPE_MISMATCH",
                               message=d.get("message", f"{tag} is the wrong kind of device."), bbox=box, photo=photo,
                               fix=f"Replace the {_nice(c.get('detected_type'))} at this position with the {part}."))
+        elif view_of.get(tag) and covered and view_of[tag] not in covered:
+            side = view_of[tag]
+            items.append(item(tag, what, "Present", "Not photographed", False, warn=True, severity="minor",
+                              code="NOT_PHOTOGRAPHED",
+                              message=f"No photo shows the {side} side of the cabinet, so {tag} could not be checked.",
+                              fix=f"Take a photo of the {side} inside view of the cabinet and run a re-check."))
         else:
             d = ctx.defect("COMPONENT_MISSING", tag) or {}
             where = place(*neighbours(tags, index, present))

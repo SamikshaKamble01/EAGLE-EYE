@@ -228,19 +228,30 @@ def _from_drawing(pdf) -> list[dict] | None:
 
     # 2. tags written on the layout views (devices that have no separate nameplate entry)
     ga_tags: dict[str, int] = {}
+    views: dict[str, str] = {}               # tag -> "left" / "front" / "right" / "rear"
     for i in ga_pages:
         # pdfplumber, not pdfium: pdfium also returns hidden CAD text (block names such as
         # 'CB41 25A' inside a breaker symbol, fuse positions F1/F2 inside every terminal strip)
-        for w in pdf.pages[i].extract_words():
+        words = pdf.pages[i].extract_words()
+        # view titles such as "LEFT INSIDE VIEW": a device belongs to the view whose title
+        # is closest to it horizontally
+        titles = [((w["x0"] + last["x1"]) / 2, w["text"].lower())          # centre of the whole title
+                  for w, nxt, last in zip(words, words[1:], words[2:])
+                  if w["text"] in ("LEFT", "FRONT", "RIGHT", "REAR") and nxt["text"] == "INSIDE" and last["text"] == "VIEW"]
+        for w in words:
             text = normalize_label(w["text"])
             if _is_device_tag(text, prefixes):
                 ga_tags.setdefault(text, i + 1)
+                if titles and text not in views:
+                    cx = (w["x0"] + w["x1"]) / 2
+                    views[text] = min(titles, key=lambda t: abs(t[0] - cx))[1]
 
     items = []
     for tag in sorted(set(nameplate_tags) | set(ga_tags), key=_tag_order):
         source = f"nameplate p{nameplate_tags[tag]}" if tag in nameplate_tags else f"layout p{ga_tags[tag]}"
         description = _describe(tag, abbreviations)
         item = _item(tag, description, 1, source)
+        item["view"] = views.get(tag)          # side of the cabinet (None = not on a layout view)
         if description and canonical_type(description) == "unknown":
             # the drawing says what it is (shield bar, thermostat ...): don't guess from the first letter
             item["type"] = re.sub(r"[^a-z]+", "_", re.sub(r"\(.*?\)", "", description.lower())).strip("_")
@@ -257,7 +268,7 @@ def _from_drawing(pdf) -> list[dict] | None:
 def _cache_file(pdf_path: Path, cache_dir: Path) -> Path:
     import hashlib
     digest = hashlib.sha256(Path(pdf_path).read_bytes()).hexdigest()[:32]
-    return Path(cache_dir) / f"pdf_{digest}_v1.json"
+    return Path(cache_dir) / f"pdf_{digest}_v2.json"
 
 
 class _Background:

@@ -35,6 +35,7 @@ export const STATUS_COLOR: Record<DeviceStatus, string> = {
   fail: "#ef4444",
   warn: "#f59e0b",
   missing: "#ef4444",
+  unseen: "#64748b",
   unchecked: "#94a3b8",
 };
 const REGION_COLOR = ["#38bdf8", "#a78bfa", "#34d399", "#fbbf24"];
@@ -299,13 +300,14 @@ interface DeviceProps {
 const Device = memo(function Device({ d, selected, dimmed, onSelect }: DeviceProps) {
   const [hover, setHover] = useState(false);
   useCursor(hover);
-  const ghost = d.status === "missing";
+  const ghost = d.status === "missing" || d.status === "unseen";
+  const ghostColor = d.status === "unseen" ? "#94a3b8" : "#ef4444";
   const z = PLATE_Z + 0.008 + d.d / 2;
 
   const body = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: ghost ? "#ef4444" : BODY_COLOR[d.kind],
+        color: ghost ? ghostColor : BODY_COLOR[d.kind],
         map: d.kind === "terminal" ? terminalTexture().clone() : null,
         metalness: d.kind === "psu" ? 0.45 : 0.08,
         roughness: d.kind === "psu" ? 0.42 : 0.55,
@@ -313,7 +315,7 @@ const Device = memo(function Device({ d, selected, dimmed, onSelect }: DevicePro
         opacity: ghost ? 0.22 : 1,
         depthWrite: !ghost,
       }),
-    [d.kind, ghost],
+    [d.kind, ghost, ghostColor],
   );
   useEffect(() => {
     if (d.kind === "terminal" && body.map) {
@@ -350,7 +352,7 @@ const Device = memo(function Device({ d, selected, dimmed, onSelect }: DevicePro
     <group position={[d.x, d.y, z]} {...events}>
       <RoundedBox args={[d.w, d.h, d.d]} radius={Math.min(0.004, d.w / 6)} smoothness={2} material={body} castShadow={!ghost} receiveShadow>
         {(selected || ghost || d.status === "fail") && (
-          <Edges color={selected ? SELECT_COLOR : "#ef4444"} threshold={20} />
+          <Edges color={selected ? SELECT_COLOR : ghost ? ghostColor : "#ef4444"} threshold={20} />
         )}
       </RoundedBox>
       {!ghost && <DeviceDetails d={d} />}
@@ -482,7 +484,7 @@ function Wiring({ layout }: { layout: CabinetLayout }) {
       byColor.get(color)!.push(geo);
     };
     for (const d of layout.devices) {
-      if (d.kind === "terminal" || d.status === "missing") continue;
+      if (d.kind === "terminal" || d.status === "missing" || d.status === "unseen") continue;
       const rail = layout.rails[d.rail];
       const next = layout.rails[d.rail + 1];
       const ductY = next ? (rail.bottom + next.top) / 2 : rail.bottom - 0.05;

@@ -6,7 +6,7 @@
 import type { ChecklistItem, InspectionResult } from "../../lib/types";
 
 export type DeviceKind = "breaker" | "contactor" | "relay" | "terminal" | "psu" | "controller" | "fuse" | "module" | "generic";
-export type DeviceStatus = "pass" | "fail" | "warn" | "missing" | "unchecked";
+export type DeviceStatus = "pass" | "fail" | "warn" | "missing" | "unseen" | "unchecked";
 
 export interface Device3D {
   id: string; // tag, e.g. CB11
@@ -85,6 +85,7 @@ export function kindOf(type: string, tag: string): DeviceKind {
 }
 
 function statusOf(rows: ChecklistItem[], componentStatus?: string): DeviceStatus {
+  if (rows.some((r) => r.code === "NOT_PHOTOGRAPHED")) return "unseen"; // its side of the cabinet was not photographed
   if (rows.some((r) => r.result === "FAIL" && r.found === "Missing") || componentStatus === "missing") return "missing";
   if (rows.some((r) => r.result === "FAIL")) return "fail";
   if (rows.some((r) => r.result === "WARN")) return "warn";
