@@ -50,6 +50,7 @@ class CheckContext:
     ocr: dict                           # {"texts": [...]}
     core: dict                          # rule engine result: components, wire_labels, defects
     image_size: tuple[int, int] | None = None   # (width, height)
+    images: list | None = None          # the photos (BGR arrays), for checks that look at pixels
 
     def defect(self, code: str, item_name) -> dict | None:
         """The rule-engine defect for this item, if any (for its message)."""

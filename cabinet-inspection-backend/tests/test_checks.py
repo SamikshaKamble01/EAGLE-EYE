@@ -2,9 +2,11 @@
 import io
 import unittest
 
+import numpy as np
+
 from app import checks
 from app.services.rule_engine import evaluate
-from tests.test_api import _Base
+from tests.test_api import _Base, make_samples
 
 COMPONENTS = [{"tag": t, "type": "contactor", "description": "Contactor", "quantity": 1} for t in ("K1", "K2", "K3")]
 NO_WIRES = {"labels": [], "wires": []}
@@ -115,3 +117,33 @@ class CheckSheetApiTests(_Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WireColourTests(_Base):
+    """Wire colour check on generated photos (wire 104 drawn blue, the wire list says red)."""
+
+    def test_colour_names_and_reading(self):
+        from app.checks import wire_colour_check as W
+        self.assertEqual(W.expected_colour("BK"), "black")
+        self.assertEqual(W.expected_colour("Green-Yellow"), "green_yellow")
+        self.assertEqual(W.expected_colour("Brown"), "brown")
+        patch = lambda bgr: np.full((10, 10, 3), bgr, np.uint8).reshape(-1, 3)
+        self.assertEqual(W.read_colour(W.classify(patch((200, 70, 30)))), "blue")
+        self.assertEqual(W.read_colour(W.classify(patch((40, 40, 200)))), "red")
+        self.assertEqual(W.read_colour(W.classify(patch((25, 25, 25)))), "black")
+        mixed = np.concatenate([patch((200, 70, 30)), patch((40, 40, 200)), patch((25, 25, 25))])
+        self.assertIsNone(W.read_colour(W.classify(mixed)))          # unclear -> no verdict
+
+    def test_wrong_wire_colour_fails_and_others_pass(self):
+        make_samples.make_photo(self.tmp / "wires.png", defects=False, wire_colours=make_samples.WIRE_DEMO)
+        body = self.upload(image="wires.png").get_json()
+        rows = {i["item"]: i for i in body["result"]["checklist"] if i["check"] == "wire_colour"}
+        self.assertEqual(rows["104"]["result"], "FAIL")
+        self.assertEqual((rows["104"]["expected"], rows["104"]["found"]), ("red", "blue"))
+        self.assertTrue(all(rows[w]["result"] == "PASS" for w in ("101", "102", "103", "105", "106") if w in rows))
+        self.assertEqual(body["verdict"], "FAIL")
+
+    def test_no_wires_in_photo_means_no_colour_rows(self):
+        body = self.upload().get_json()          # the normal good sample has no drawn wires
+        self.assertFalse(any(i["check"] == "wire_colour" for i in body["result"]["checklist"]))
+        self.assertEqual(body["verdict"], "PASS")

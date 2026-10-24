@@ -7,6 +7,8 @@ Creates in samples/:
     wiring.xlsx        wiring list (Wire No | From | To | Colour | Size)
     cabinet_good.png   photo where everything matches         -> PASS
     cabinet_bad.png    K2 missing, K1 labelled K7, wire 105 missing, extra Q9 -> FAIL
+    cabinet_wires.png  everything OK, with coloured wires - wire 104 is blue, the list says red
+                       (demo for the wire colour check) -> FAIL
 """
 from pathlib import Path
 
@@ -38,6 +40,11 @@ WIRES = [
     ("105", "A1:Q0", "K1:A1", "Blue", "0.75"),
     ("106", "A1:Q1", "K2:A1", "Blue", "0.75"),
 ]
+
+
+# BGR colours for the wire colour demo photo (wire 104 deliberately wrong: blue, list says red)
+WIRE_DEMO = {"101": (30, 30, 30), "102": (30, 30, 30), "103": (35, 75, 135),
+             "104": (200, 70, 30), "105": (200, 70, 30), "106": (200, 70, 30)}
 
 
 def make_pdf(path: Path):
@@ -93,7 +100,8 @@ def _draw_texts(img):
     return cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
 
 
-def make_photo(path: Path, defects: bool):
+def make_photo(path: Path, defects: bool, wire_colours: dict | None = None):
+    """wire_colours (optional): {"101": (b, g, r), ...} draws the wire through each ferrule."""
     img = np.full((1100, 1600, 3), (185, 190, 195), np.uint8)           # back plate
     cv2.rectangle(img, (40, 330), (1560, 360), (140, 140, 140), -1)      # DIN rail
     devices = [("Q1", 60), ("K1", 280), ("K2", 500), ("F1", 720), ("G1", 900), ("A1", 1130), ("X1", 1360)]
@@ -107,6 +115,8 @@ def make_photo(path: Path, defects: bool):
     for i, wire in enumerate(["101", "102", "103", "104", "105", "106"]):
         if defects and wire == "105":
             continue
+        if wire_colours and wire in wire_colours:          # wire through the sleeve, both sides
+            cv2.line(img, (80 + i * 200 - 38, 925), (80 + i * 200 + 158, 925), wire_colours[wire], 16)
         _ferrule(img, 80 + i * 200, 900, wire)
     img = _draw_texts(img)
     # a bit of camera realism: blur + sensor noise
@@ -122,6 +132,9 @@ def main():
     make_excel(OUT / "wiring.xlsx")
     make_photo(OUT / "cabinet_good.png", defects=False)
     make_photo(OUT / "cabinet_bad.png", defects=True)
+    # extra sample for the wire colour check: all wires as in the wire list except 104,
+    # which should be red but is blue
+    make_photo(OUT / "cabinet_wires.png", defects=False, wire_colours=WIRE_DEMO)
     print(f"Samples written to {OUT}")
 
 

@@ -163,6 +163,7 @@ between its neighbours).
 | GA check | `app/checks/ga_check.py` | Every part of the drawing is present, of the right kind, and in the right order |
 | Label check | `app/checks/label_check.py` | Every device label is readable and matches the drawing |
 | Ferrule check | `app/checks/ferrule_check.py` | Every wire sleeve of the wire list is fitted and readable |
+| Wire colour check | `app/checks/wire_colour_check.py` | The wire at each found ferrule has the colour of the wire list's Colour column (only clear readings count; demo: `samples/cabinet_wires.png`, wire 104 is blue instead of red) |
 | Not in the documents | `app/checks/extras_check.py` | Labels in the photo that no document mentions (note only) |
 
 **Adding a check needs no rewrite** - drop a file into `app/checks/`; it is
@@ -263,8 +264,8 @@ api.http                 ready-made requests
 ```
 
 ## Notes / limits
-- The stretch "wiring check" (wire colour, terminal and module in every slot) is
-  not implemented. It would be one more file in `app/checks/`.
+- The wire colour check compares colours only; where a wire actually goes
+  (terminal to terminal) is not verified from a photo.
 - The order check compares devices of the same family (K1, K2, K3 ...) row by row
   with the order in which the drawing's table lists them.
 - Wiring is verified through wire-number labels. Proving that wire 101 really

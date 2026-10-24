@@ -99,7 +99,8 @@ def run_inspection(inspection_id: str, cabinet_name: str, paths: dict, cfg: dict
 
     # ---- QC check sheet: every plug-in in app/checks/ adds its rows -------
     ctx = checks.CheckContext(expected_components, expected_wiring, vision, ocr, result,
-                              image_size={n: (im.shape[1], im.shape[0]) for n, im in enumerate(images)})
+                              image_size={n: (im.shape[1], im.shape[0]) for n, im in enumerate(images)},
+                              images=images)
     sheet = timed("checks", checks.run_all, ctx)
     checks.apply_to_result(result, sheet)
 
