@@ -1,5 +1,5 @@
 // Ctrl+K quick search: jump to a page, run an action, or open any inspection by name / ID.
-import { CornerDownLeft, History as HistoryIcon, LayoutDashboard, Moon, ScanLine, Search, Sun, type LucideIcon } from "lucide-react";
+import { CircleHelp, CornerDownLeft, History as HistoryIcon, LayoutDashboard, Moon, ScanLine, Search, Sun, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { listInspections } from "../lib/api";
@@ -52,6 +52,7 @@ export default function CommandPalette({ open, onClose, theme, onToggleTheme }: 
       { key: "new", label: "Start a new inspection", icon: ScanLine, run: go("/inspect") },
       { key: "hist", label: "Open inspection history", icon: HistoryIcon, run: go("/history") },
       { key: "failed", label: "Show failed inspections", icon: HistoryIcon, run: go("/history?verdict=FAIL") },
+      { key: "help", label: "Open help and FAQ", icon: CircleHelp, run: go("/help") },
       {
         key: "theme",
         label: `Switch to ${theme === "dark" ? "light" : "dark"} theme`,

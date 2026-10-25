@@ -127,6 +127,13 @@ def complete_inspection(inspection_id: str, result: dict, annotated_path, report
     db.commit()
 
 
+def update_result(inspection_id: str, result: dict) -> None:
+    """Replace the stored result (used when inspector observations change the impact analysis)."""
+    db = get_db()
+    db.execute("UPDATE inspections SET summary_json=? WHERE id=?", (json.dumps(result), inspection_id))
+    db.commit()
+
+
 def fail_inspection(inspection_id: str, error: str) -> None:
     db = get_db()
     db.execute("UPDATE inspections SET status='failed', error=? WHERE id=?", (error, inspection_id))

@@ -144,6 +144,10 @@ export interface InspectionResult {
   photos?: { index: number; name: string; width: number; height: number }[];
   checks?: CheckSummary[];
   recheck?: Recheck;
+  impact?: Impact; // fault-impact analysis (absent only if it could not be computed)
+  /** what the drawing says should be there; `view` and `pos` (0..1 down the enclosure outline) come from the layout sheet */
+  expected?: { components: { tag: string | null; description: string; view?: string | null; pos?: { u: number; v: number } }[]; wiring: unknown[] };
+  observations?: Record<string, Observation>;
 }
 
 export interface InspectionSummary {
@@ -195,4 +199,96 @@ export interface Health {
     pdf: { available: boolean };
     excel: { available: boolean };
   };
+}
+
+// ---- fault-impact (root-cause) analysis: result.impact -------------------------------------
+export type Disposition = "PASS" | "PASS_WITH_DOCUMENTATION_DEFECTS" | "FAIL" | "HOLD_FOR_ENGINEERING_REVIEW";
+export type NodeState = "fault" | "lost" | "uncertain" | "degraded" | "documentation" | "unverified" | "ok" | "not_inspected";
+export type ImpactConfidence = "confirmed" | "probable" | "unknown";
+
+export interface ImpactDefect {
+  id: string;
+  tag: string;
+  kind: string; // component_missing | component_incorrectly_installed | label_missing | label_incorrect | label_unreadable | label_present_component_missing | wire_label_missing | wire_label_incorrect
+  expected: { tag: string; description: string; function: string };
+  observed: string;
+  label_observed: string;
+  evidence: { source: string; detail: string; confidence: string; photo?: number | null };
+  reference: string;
+  circuit: string | null;
+  subsystem: string | null;
+  consequences: { lost: string[]; degraded: string[]; uncertain: string[] };
+  impact_confidence: ImpactConfidence;
+  severity: string;
+  rationale: string;
+  redundancy: { mitigated: boolean; note: string } | null;
+  classification: string[];
+  corrective_action: string;
+  retest: string;
+  final_status: "FAIL" | "HOLD" | "DOCUMENTATION_DEFECT" | "UNVERIFIED";
+  approval_required: boolean;
+  safety_related?: boolean;
+  missing_information?: string | null;
+}
+
+export interface ImpactComponent {
+  tag: string;
+  description: string;
+  function: string;
+  component_status: string;
+  label_status: string;
+  location: string | null;
+  circuit: string | null;
+  subsystem: string | null;
+  in_topology: boolean;
+  evidence: { source: string; detail: string; confidence: string };
+  safety: boolean;
+}
+
+export interface RollupStatus {
+  name: string;
+  status: string;
+  reason: string[];
+  parts: number;
+  inspected: number;
+}
+
+export interface ImpactGraph {
+  nodes: { id: string; label: string; kind: string; circuit: string | null; state: NodeState; members: string[]; function: string }[];
+  edges: { from: string; to: string; type: string; sheet: string }[];
+}
+
+export interface Impact {
+  cabinet: string | null;
+  topology: { found: boolean; document?: string | null; provenance?: string | null };
+  policy: { approved: boolean; note: string };
+  disposition: Disposition;
+  disposition_label: string;
+  engineering_approval_required: boolean;
+  statuses: {
+    component: Record<string, number>;
+    label: Record<string, number>;
+    circuit: RollupStatus[];
+    subsystem: RollupStatus[];
+    cabinet_functional: string;
+    identification: string;
+    safety_review: string;
+  };
+  summary: { electrical_defects: number; labeling_defects: number; unresolved: number; components: number };
+  defects: ImpactDefect[];
+  components: ImpactComponent[];
+  graph: ImpactGraph;
+  node_states: Record<string, NodeState>;
+  /** overall size of the cabinet as read from the drawing's dimension sheet (mm); absent when not documented */
+  geometry?: { width_mm: number; depth_mm: number; height_mm: number; plinth_mm?: number; source?: string; note?: string } | null;
+  /** every documented connection between parts of this cabinet (for the 3D wires) */
+  wires?: { from: string; to: string; type: string; sheet: string; via?: string }[];
+  missing_information: { about: string; reason: string; needed: string }[];
+  assumptions: string[];
+}
+
+export interface Observation {
+  component?: "present" | "missing" | "unknown";
+  label?: "ok" | "missing" | "incorrect" | "unreadable" | "present" | "unknown";
+  note?: string;
 }

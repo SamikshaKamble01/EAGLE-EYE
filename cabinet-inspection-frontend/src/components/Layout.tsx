@@ -1,5 +1,5 @@
 // App shell: sidebar navigation and top bar (quick search, theme).
-import { History as HistoryIcon, LayoutDashboard, Moon, ScanLine, Search, Sun } from "lucide-react";
+import { CircleHelp, History as HistoryIcon, LayoutDashboard, Moon, ScanLine, Search, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useTheme } from "../lib/theme";
@@ -9,6 +9,7 @@ const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/inspect", label: "New inspection", icon: ScanLine, end: false },
   { to: "/history", label: "History", icon: HistoryIcon, end: false },
+  { to: "/help", label: "Help", icon: CircleHelp, end: false },
 ];
 
 export default function Layout() {

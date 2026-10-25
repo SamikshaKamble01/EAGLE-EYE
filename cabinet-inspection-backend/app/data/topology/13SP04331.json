@@ -1,0 +1,1725 @@
+{
+ "cabinet": "13SP04331",
+ "title": "PCS System Cabinet",
+ "document": "AO-400-13-S463-000056 rev 03 (ASF 10-AUG-2026), sheets 10, 11, 12",
+ "provenance": "Read from the drawing images by a person. NOT verified by an engineer. Only drawn connections are listed; what the drawings do not show is in 'unknown'.",
+ "geometry": {
+  "width_mm": 810,
+  "depth_mm": 810,
+  "height_mm": 2000,
+  "plinth_mm": 100,
+  "source": "AO-400-13-S463-000056 rev 03, sheet 5 (cabinet outline dimensions)",
+  "note": "All dimensions in mm (+/- 5) per the drawing. Width and depth read from the 810 dimensions of the front and side views; height 2000 plus a 100 mm plinth. Read by a person, not verified."
+ },
+ "nodes": {
+  "EXT-UPSA": {
+   "kind": "source",
+   "function": "AC supply UPSA from PDP cabinet 13DC04331 (cable C-13SP04331-01)",
+   "circuit": "AC feed A (UPSA)",
+   "subsystem": "AC input and protection",
+   "sheet": "10",
+   "external": true
+  },
+  "XP1": {
+   "kind": "terminal",
+   "function": "Incoming terminal block UPSA",
+   "circuit": "AC feed A (UPSA)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "DS1": {
+   "kind": "isolator",
+   "function": "Isolator 40 A",
+   "circuit": "AC feed A (UPSA)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "XP11": {
+   "kind": "terminal",
+   "function": "Terminal block after isolator (UPSA)",
+   "circuit": "AC feed A (UPSA)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "CB11": {
+   "kind": "breaker",
+   "function": "Circuit breaker 16 A type C - feeds the 24 VDC power supply",
+   "circuit": "AC feed A (UPSA)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "CB12": {
+   "kind": "breaker",
+   "function": "Circuit breaker 6 A type C - feeds the fan / filter / light-switch terminal",
+   "circuit": "AC feed A (UPSA)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "CB13": {
+   "kind": "breaker",
+   "function": "Circuit breaker 6 A type C - feeds the cabinet light",
+   "circuit": "AC feed A (UPSA)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "CB14": {
+   "kind": "spare",
+   "function": "Circuit breaker 6 A type C - SPARE (drawing: do not connect additional load)",
+   "circuit": "AC feed A (UPSA)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "SPD1": {
+   "kind": "surge",
+   "function": "Surge protection device (L, N, PE)",
+   "circuit": "AC feed A (UPSA)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "PS11": {
+   "kind": "power_supply",
+   "function": "Power supply 40 A, 100-240 VAC in, 24 VDC out",
+   "circuit": "AC feed A (UPSA)",
+   "subsystem": "24 VDC power supply",
+   "sheet": "10"
+  },
+  "X-FSW1": {
+   "kind": "terminal",
+   "function": "Terminal block to FSW / CF",
+   "circuit": "AC feed A (UPSA)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "FSW1": {
+   "kind": "load",
+   "function": "FSW (load on the 6 A breaker)",
+   "circuit": "AC feed A (UPSA)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "CF1": {
+   "kind": "load",
+   "function": "CF (load on the 6 A breaker)",
+   "circuit": "AC feed A (UPSA)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "CL1": {
+   "kind": "load",
+   "function": "Cabinet light CL",
+   "circuit": "AC feed A (UPSA)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "EXT-UPSB": {
+   "kind": "source",
+   "function": "AC supply UPSB from PDP cabinet 13DC04332 (cable C-13SP04331-03)",
+   "circuit": "AC feed B (UPSB)",
+   "subsystem": "AC input and protection",
+   "sheet": "10",
+   "external": true
+  },
+  "XS1": {
+   "kind": "terminal",
+   "function": "Incoming terminal block UPSB",
+   "circuit": "AC feed B (UPSB)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "DS2": {
+   "kind": "isolator",
+   "function": "Isolator 40 A",
+   "circuit": "AC feed B (UPSB)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "XS21": {
+   "kind": "terminal",
+   "function": "Terminal block after isolator (UPSB)",
+   "circuit": "AC feed B (UPSB)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "CB21": {
+   "kind": "breaker",
+   "function": "Circuit breaker 16 A type C - feeds the 24 VDC power supply",
+   "circuit": "AC feed B (UPSB)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "CB22": {
+   "kind": "breaker",
+   "function": "Circuit breaker 6 A type C - feeds the fan / filter / light-switch terminal",
+   "circuit": "AC feed B (UPSB)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "CB23": {
+   "kind": "breaker",
+   "function": "Circuit breaker 6 A type C - feeds the cabinet light",
+   "circuit": "AC feed B (UPSB)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "CB24": {
+   "kind": "spare",
+   "function": "Circuit breaker 6 A type C - SPARE (drawing: do not connect additional load)",
+   "circuit": "AC feed B (UPSB)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "SPD2": {
+   "kind": "surge",
+   "function": "Surge protection device (L, N, PE)",
+   "circuit": "AC feed B (UPSB)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "PS21": {
+   "kind": "power_supply",
+   "function": "Power supply 40 A, 100-240 VAC in, 24 VDC out",
+   "circuit": "AC feed B (UPSB)",
+   "subsystem": "24 VDC power supply",
+   "sheet": "10"
+  },
+  "X-FSW2": {
+   "kind": "terminal",
+   "function": "Terminal block to FSW / CF",
+   "circuit": "AC feed B (UPSB)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "FSW2": {
+   "kind": "load",
+   "function": "FSW (load on the 6 A breaker)",
+   "circuit": "AC feed B (UPSB)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "CF2": {
+   "kind": "load",
+   "function": "CF (load on the 6 A breaker)",
+   "circuit": "AC feed B (UPSB)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "CL2": {
+   "kind": "load",
+   "function": "Cabinet light CL",
+   "circuit": "AC feed B (UPSB)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "EXT-NORMAL": {
+   "kind": "source",
+   "function": "AC supply NORMAL from PDP cabinet 13DC04331 (cable C-13SP04331-02)",
+   "circuit": "AC normal (socket)",
+   "subsystem": "AC input and protection",
+   "sheet": "10",
+   "external": true
+  },
+  "XU1": {
+   "kind": "terminal",
+   "function": "Incoming terminal block NORMAL",
+   "circuit": "AC normal (socket)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "DS3": {
+   "kind": "isolator",
+   "function": "Isolator 40 A",
+   "circuit": "AC normal (socket)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "RCCB1": {
+   "kind": "breaker",
+   "function": "Residual-current breaker 25 A type C",
+   "circuit": "AC normal (socket)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "REC1": {
+   "kind": "load",
+   "function": "Socket outlet 13 A",
+   "circuit": "AC normal (socket)",
+   "subsystem": "AC input and protection",
+   "sheet": "10"
+  },
+  "D11": {
+   "kind": "diode_module",
+   "function": "Redundancy / decoupling module 80 A, 12-28 V (In1 wired, In2 not wired on the drawing)",
+   "circuit": "24 VDC feed A",
+   "subsystem": "24 VDC distribution",
+   "sheet": "11"
+  },
+  "CB41": {
+   "kind": "breaker",
+   "function": "Circuit breaker 25 A type C - feeds the fuse terminal for the PK / EIOC loads",
+   "circuit": "24 VDC feed A",
+   "subsystem": "24 VDC distribution",
+   "sheet": "11"
+  },
+  "CB42": {
+   "kind": "breaker",
+   "function": "Circuit breaker 25 A type C - feeds the fuse terminal for the MFW modules (sheet 12)",
+   "circuit": "24 VDC feed A",
+   "subsystem": "24 VDC distribution",
+   "sheet": "11"
+  },
+  "X41": {
+   "kind": "fuse_terminal",
+   "function": "Fuse terminal block, 4 A fuses (PK / EIOC loads)",
+   "circuit": "24 VDC feed A",
+   "subsystem": "24 VDC distribution",
+   "sheet": "11"
+  },
+  "X42": {
+   "kind": "fuse_terminal",
+   "function": "Fuse terminal block, 1 A fuses (13MFW modules)",
+   "circuit": "24 VDC feed A",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12"
+  },
+  "D21": {
+   "kind": "diode_module",
+   "function": "Redundancy / decoupling module 80 A, 12-28 V (In1 wired, In2 not wired on the drawing)",
+   "circuit": "24 VDC feed B",
+   "subsystem": "24 VDC distribution",
+   "sheet": "11"
+  },
+  "CB51": {
+   "kind": "breaker",
+   "function": "Circuit breaker 25 A type C - feeds the fuse terminal for the PK / EIOC loads",
+   "circuit": "24 VDC feed B",
+   "subsystem": "24 VDC distribution",
+   "sheet": "11"
+  },
+  "CB52": {
+   "kind": "breaker",
+   "function": "Circuit breaker 25 A type C - feeds the fuse terminal for the MFW modules (sheet 12)",
+   "circuit": "24 VDC feed B",
+   "subsystem": "24 VDC distribution",
+   "sheet": "11"
+  },
+  "X51": {
+   "kind": "fuse_terminal",
+   "function": "Fuse terminal block, 4 A fuses (PK / EIOC loads)",
+   "circuit": "24 VDC feed B",
+   "subsystem": "24 VDC distribution",
+   "sheet": "11"
+  },
+  "X52": {
+   "kind": "fuse_terminal",
+   "function": "Fuse terminal block, 1 A fuses (13MFW modules)",
+   "circuit": "24 VDC feed B",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12"
+  },
+  "13PK04331": {
+   "kind": "load",
+   "function": "13PK04331: fed by X41 (primary, fuse F1) and X51 (secondary, fuse F1)",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "11",
+   "external": true,
+   "dual_fed": true
+  },
+  "13PK04332": {
+   "kind": "load",
+   "function": "13PK04332: fed by X41 (primary, fuse F2) and X51 (secondary, fuse F2)",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "11",
+   "external": true,
+   "dual_fed": true
+  },
+  "13EIOC04331": {
+   "kind": "load",
+   "function": "13EIOC04331: fed by X41 (primary, fuse F3) and X51 (secondary, fuse F3)",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "11",
+   "external": true,
+   "dual_fed": true
+  },
+  "13EIOC04332": {
+   "kind": "load",
+   "function": "13EIOC04332: fed by X41 (primary, fuse F4) and X51 (secondary, fuse F4)",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "11",
+   "external": true,
+   "dual_fed": true
+  },
+  "4 WIDE CARRIER": {
+   "kind": "load",
+   "function": "4 WIDE CARRIER: fed by X41 (primary, fuse F5) and X51 (secondary, fuse F5)",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "11",
+   "external": true,
+   "dual_fed": true
+  },
+  "13PK04333": {
+   "kind": "load",
+   "function": "13PK04333: fed by X41 (primary, fuse F6) and X51 (secondary, fuse F6)",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "11",
+   "external": true,
+   "dual_fed": true
+  },
+  "13EIOC04333": {
+   "kind": "load",
+   "function": "13EIOC04333: fed by X41 (primary, fuse F7) and X51 (secondary, fuse F7)",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "11",
+   "external": true,
+   "dual_fed": true
+  },
+  "13MFW04331": {
+   "kind": "load",
+   "function": "Module 13MFW04331: supply 1A/1B from X42-F1, 3A/3B from X52-F1",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04332": {
+   "kind": "load",
+   "function": "Module 13MFW04332: supply 1A/1B from X42-F2, 3A/3B from X52-F2",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04333": {
+   "kind": "load",
+   "function": "Module 13MFW04333: supply 1A/1B from X42-F3, 3A/3B from X52-F3",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04334": {
+   "kind": "load",
+   "function": "Module 13MFW04334: supply 1A/1B from X42-F4, 3A/3B from X52-F4",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04335": {
+   "kind": "load",
+   "function": "Module 13MFW04335: supply 1A/1B from X42-F5, 3A/3B from X52-F5",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04336": {
+   "kind": "load",
+   "function": "Module 13MFW04336: supply 1A/1B from X42-F6, 3A/3B from X52-F6",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04337": {
+   "kind": "load",
+   "function": "Module 13MFW04337: supply 1A/1B from X42-F7, 3A/3B from X52-F7",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04338": {
+   "kind": "load",
+   "function": "Module 13MFW04338: supply 1A/1B from X42-F8, 3A/3B from X52-F8",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04339": {
+   "kind": "load",
+   "function": "Module 13MFW04339: supply 1A/1B from X42-F9, 3A/3B from X52-F9",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04340": {
+   "kind": "load",
+   "function": "Module 13MFW04340: supply 1A/1B from X42-F10, 3A/3B from X52-F10",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04341": {
+   "kind": "load",
+   "function": "Module 13MFW04341: supply 1A/1B from X42-F11, 3A/3B from X52-F11",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04342": {
+   "kind": "load",
+   "function": "Module 13MFW04342: supply 1A/1B from X42-F12, 3A/3B from X52-F12",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04343": {
+   "kind": "load",
+   "function": "Module 13MFW04343: supply 1A/1B from X42-F13, 3A/3B from X52-F13",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04344": {
+   "kind": "load",
+   "function": "Module 13MFW04344: supply 1A/1B from X42-F14, 3A/3B from X52-F14",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04345": {
+   "kind": "load",
+   "function": "Module 13MFW04345: supply 1A/1B from X42-F15, 3A/3B from X52-F15",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04346": {
+   "kind": "load",
+   "function": "Module 13MFW04346: supply 1A/1B from X42-F16, 3A/3B from X52-F16",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04347": {
+   "kind": "load",
+   "function": "Module 13MFW04347: supply 1A/1B from X42-F17, 3A/3B from X52-F17",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04348": {
+   "kind": "load",
+   "function": "Module 13MFW04348: supply 1A/1B from X42-F18, 3A/3B from X52-F18",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04349": {
+   "kind": "load",
+   "function": "Module 13MFW04349: supply 1A/1B from X42-F19, 3A/3B from X52-F19",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04350": {
+   "kind": "load",
+   "function": "Module 13MFW04350: supply 1A/1B from X42-F20, 3A/3B from X52-F20",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04351": {
+   "kind": "load",
+   "function": "Module 13MFW04351: supply 1A/1B from X42-F21, 3A/3B from X52-F21",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04352": {
+   "kind": "load",
+   "function": "Module 13MFW04352: supply 1A/1B from X42-F22, 3A/3B from X52-F22",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04353": {
+   "kind": "load",
+   "function": "Module 13MFW04353: supply 1A/1B from X42-F23, 3A/3B from X52-F23",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04354": {
+   "kind": "load",
+   "function": "Module 13MFW04354: supply 1A/1B from X42-F24, 3A/3B from X52-F24",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04355": {
+   "kind": "load",
+   "function": "Module 13MFW04355: supply 1A/1B from X42-F25, 3A/3B from X52-F25",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04356": {
+   "kind": "load",
+   "function": "Module 13MFW04356: supply 1A/1B from X42-F26, 3A/3B from X52-F26",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04358": {
+   "kind": "load",
+   "function": "Module 13MFW04358: supply 1A/1B from X42-F28, 3A/3B from X52-F28",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04359": {
+   "kind": "load",
+   "function": "Module 13MFW04359: supply 1A/1B from X42-F29, 3A/3B from X52-F29",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04360": {
+   "kind": "load",
+   "function": "Module 13MFW04360: supply 1A/1B from X42-F30, 3A/3B from X52-F30",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04361": {
+   "kind": "load",
+   "function": "Module 13MFW04361: supply 1A/1B from X42-F31, 3A/3B from X52-F31",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04362": {
+   "kind": "load",
+   "function": "Module 13MFW04362: supply 1A/1B from X42-F32, 3A/3B from X52-F32",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04363": {
+   "kind": "load",
+   "function": "Module 13MFW04363: supply 1A/1B from X42-F33, 3A/3B from X52-F33",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04364": {
+   "kind": "load",
+   "function": "Module 13MFW04364: supply 1A/1B from X42-F34, 3A/3B from X52-F34",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04366": {
+   "kind": "load",
+   "function": "Module 13MFW04366: supply 1A/1B from X42-F36, 3A/3B from X52-F36",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04367": {
+   "kind": "load",
+   "function": "Module 13MFW04367: supply 1A/1B from X42-F37, 3A/3B from X52-F37",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04370": {
+   "kind": "load",
+   "function": "Module 13MFW04370: supply 1A/1B from X42-F38, 3A/3B from X52-F38",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "13MFW04371": {
+   "kind": "load",
+   "function": "Module 13MFW04371: supply 1A/1B from X42-F39, 3A/3B from X52-F39",
+   "circuit": "Dual-fed loads",
+   "subsystem": "24 VDC distribution",
+   "sheet": "12",
+   "group": "13MFW modules",
+   "dual_fed": true
+  },
+  "X-ALM": {
+   "kind": "monitor",
+   "function": "Alarm terminal block to the control system (tag 13XA-05330, channel CH09)",
+   "circuit": "Alarm circuit",
+   "subsystem": "Monitoring and alarm",
+   "sheet": "11"
+  },
+  "TS1": {
+   "kind": "monitor",
+   "function": "Thermostat, set to 35 degC",
+   "circuit": "Alarm circuit",
+   "subsystem": "Monitoring and alarm",
+   "sheet": "11"
+  },
+  "ALM-FSW1": {
+   "kind": "monitor",
+   "function": "Alarm terminal block FSW1",
+   "circuit": "Alarm circuit",
+   "subsystem": "Monitoring and alarm",
+   "sheet": "11"
+  },
+  "ALM-FSW2": {
+   "kind": "monitor",
+   "function": "Alarm terminal block FSW2",
+   "circuit": "Alarm circuit",
+   "subsystem": "Monitoring and alarm",
+   "sheet": "11"
+  },
+  "SDTB1": {
+   "kind": "terminal",
+   "function": "Smoke detector terminal block 1 (1.5 mm2 black / white)",
+   "circuit": "Smoke detector wiring",
+   "subsystem": "Fire detection",
+   "sheet": "11",
+   "safety": "candidate"
+  },
+  "SDTB2": {
+   "kind": "terminal",
+   "function": "Smoke detector terminal block 2 (1.5 mm2 black / white)",
+   "circuit": "Smoke detector wiring",
+   "subsystem": "Fire detection",
+   "sheet": "11",
+   "safety": "candidate"
+  },
+  "13RDEW-40A949H": {
+   "kind": "load",
+   "function": "Smoke detector (wiring by others)",
+   "circuit": "Smoke detector wiring",
+   "subsystem": "Fire detection",
+   "sheet": "11",
+   "safety": "candidate",
+   "external": true
+  }
+ },
+ "edges": [
+  {
+   "from": "EXT-UPSA",
+   "to": "XP1",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "XP1",
+   "to": "DS1",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "DS1",
+   "to": "XP11",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "XP11",
+   "to": "CB11",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "XP11",
+   "to": "CB12",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "XP11",
+   "to": "CB13",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "XP11",
+   "to": "CB14",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "XP11",
+   "to": "SPD1",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "CB11",
+   "to": "PS11",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "CB12",
+   "to": "X-FSW1",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "X-FSW1",
+   "to": "FSW1",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "X-FSW1",
+   "to": "CF1",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "CB13",
+   "to": "CL1",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "EXT-UPSB",
+   "to": "XS1",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "XS1",
+   "to": "DS2",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "DS2",
+   "to": "XS21",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "XS21",
+   "to": "CB21",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "XS21",
+   "to": "CB22",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "XS21",
+   "to": "CB23",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "XS21",
+   "to": "CB24",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "XS21",
+   "to": "SPD2",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "CB21",
+   "to": "PS21",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "CB22",
+   "to": "X-FSW2",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "X-FSW2",
+   "to": "FSW2",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "X-FSW2",
+   "to": "CF2",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "CB23",
+   "to": "CL2",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "EXT-NORMAL",
+   "to": "XU1",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "XU1",
+   "to": "DS3",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "DS3",
+   "to": "RCCB1",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "RCCB1",
+   "to": "REC1",
+   "type": "power",
+   "sheet": "10"
+  },
+  {
+   "from": "PS11",
+   "to": "D11",
+   "type": "power",
+   "sheet": "10/11"
+  },
+  {
+   "from": "D11",
+   "to": "CB41",
+   "type": "power",
+   "sheet": "11"
+  },
+  {
+   "from": "D11",
+   "to": "CB42",
+   "type": "power",
+   "sheet": "11"
+  },
+  {
+   "from": "CB41",
+   "to": "X41",
+   "type": "power",
+   "sheet": "11"
+  },
+  {
+   "from": "CB42",
+   "to": "X42",
+   "type": "power",
+   "sheet": "11/12"
+  },
+  {
+   "from": "PS21",
+   "to": "D21",
+   "type": "power",
+   "sheet": "10/11"
+  },
+  {
+   "from": "D21",
+   "to": "CB51",
+   "type": "power",
+   "sheet": "11"
+  },
+  {
+   "from": "D21",
+   "to": "CB52",
+   "type": "power",
+   "sheet": "11"
+  },
+  {
+   "from": "CB51",
+   "to": "X51",
+   "type": "power",
+   "sheet": "11"
+  },
+  {
+   "from": "CB52",
+   "to": "X52",
+   "type": "power",
+   "sheet": "11/12"
+  },
+  {
+   "from": "X41",
+   "to": "13PK04331",
+   "type": "power",
+   "sheet": "11",
+   "via": "X41-F1 (PRI)"
+  },
+  {
+   "from": "X51",
+   "to": "13PK04331",
+   "type": "power",
+   "sheet": "11",
+   "via": "X51-F1 (SEC)"
+  },
+  {
+   "from": "X41",
+   "to": "13PK04332",
+   "type": "power",
+   "sheet": "11",
+   "via": "X41-F2 (PRI)"
+  },
+  {
+   "from": "X51",
+   "to": "13PK04332",
+   "type": "power",
+   "sheet": "11",
+   "via": "X51-F2 (SEC)"
+  },
+  {
+   "from": "X41",
+   "to": "13EIOC04331",
+   "type": "power",
+   "sheet": "11",
+   "via": "X41-F3 (PRI)"
+  },
+  {
+   "from": "X51",
+   "to": "13EIOC04331",
+   "type": "power",
+   "sheet": "11",
+   "via": "X51-F3 (SEC)"
+  },
+  {
+   "from": "X41",
+   "to": "13EIOC04332",
+   "type": "power",
+   "sheet": "11",
+   "via": "X41-F4 (PRI)"
+  },
+  {
+   "from": "X51",
+   "to": "13EIOC04332",
+   "type": "power",
+   "sheet": "11",
+   "via": "X51-F4 (SEC)"
+  },
+  {
+   "from": "X41",
+   "to": "4 WIDE CARRIER",
+   "type": "power",
+   "sheet": "11",
+   "via": "X41-F5 (PRI)"
+  },
+  {
+   "from": "X51",
+   "to": "4 WIDE CARRIER",
+   "type": "power",
+   "sheet": "11",
+   "via": "X51-F5 (SEC)"
+  },
+  {
+   "from": "X41",
+   "to": "13PK04333",
+   "type": "power",
+   "sheet": "11",
+   "via": "X41-F6 (PRI)"
+  },
+  {
+   "from": "X51",
+   "to": "13PK04333",
+   "type": "power",
+   "sheet": "11",
+   "via": "X51-F6 (SEC)"
+  },
+  {
+   "from": "X41",
+   "to": "13EIOC04333",
+   "type": "power",
+   "sheet": "11",
+   "via": "X41-F7 (PRI)"
+  },
+  {
+   "from": "X51",
+   "to": "13EIOC04333",
+   "type": "power",
+   "sheet": "11",
+   "via": "X51-F7 (SEC)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04331",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F1 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04331",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F1 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04332",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F2 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04332",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F2 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04333",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F3 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04333",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F3 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04334",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F4 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04334",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F4 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04335",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F5 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04335",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F5 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04336",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F6 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04336",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F6 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04337",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F7 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04337",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F7 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04338",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F8 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04338",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F8 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04339",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F9 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04339",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F9 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04340",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F10 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04340",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F10 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04341",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F11 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04341",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F11 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04342",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F12 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04342",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F12 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04343",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F13 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04343",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F13 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04344",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F14 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04344",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F14 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04345",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F15 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04345",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F15 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04346",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F16 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04346",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F16 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04347",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F17 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04347",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F17 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04348",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F18 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04348",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F18 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04349",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F19 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04349",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F19 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04350",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F20 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04350",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F20 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04351",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F21 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04351",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F21 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04352",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F22 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04352",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F22 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04353",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F23 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04353",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F23 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04354",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F24 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04354",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F24 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04355",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F25 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04355",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F25 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04356",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F26 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04356",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F26 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04358",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F28 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04358",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F28 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04359",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F29 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04359",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F29 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04360",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F30 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04360",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F30 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04361",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F31 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04361",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F31 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04362",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F32 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04362",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F32 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04363",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F33 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04363",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F33 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04364",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F34 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04364",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F34 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04366",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F36 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04366",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F36 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04367",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F37 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04367",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F37 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04370",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F38 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04370",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F38 (1 A)"
+  },
+  {
+   "from": "X42",
+   "to": "13MFW04371",
+   "type": "power",
+   "sheet": "12",
+   "via": "X42-F39 (1 A)"
+  },
+  {
+   "from": "X52",
+   "to": "13MFW04371",
+   "type": "power",
+   "sheet": "12",
+   "via": "X52-F39 (1 A)"
+  },
+  {
+   "from": "PS11",
+   "to": "X-ALM",
+   "type": "monitor",
+   "sheet": "11"
+  },
+  {
+   "from": "PS21",
+   "to": "X-ALM",
+   "type": "monitor",
+   "sheet": "11"
+  },
+  {
+   "from": "D11",
+   "to": "X-ALM",
+   "type": "monitor",
+   "sheet": "11"
+  },
+  {
+   "from": "D21",
+   "to": "X-ALM",
+   "type": "monitor",
+   "sheet": "11"
+  },
+  {
+   "from": "TS1",
+   "to": "X-ALM",
+   "type": "monitor",
+   "sheet": "11"
+  },
+  {
+   "from": "ALM-FSW1",
+   "to": "X-ALM",
+   "type": "monitor",
+   "sheet": "11"
+  },
+  {
+   "from": "ALM-FSW2",
+   "to": "X-ALM",
+   "type": "monitor",
+   "sheet": "11"
+  },
+  {
+   "from": "FSW1",
+   "to": "ALM-FSW1",
+   "type": "monitor",
+   "sheet": "11"
+  },
+  {
+   "from": "FSW2",
+   "to": "ALM-FSW2",
+   "type": "monitor",
+   "sheet": "11"
+  },
+  {
+   "from": "SDTB1",
+   "to": "13RDEW-40A949H",
+   "type": "signal",
+   "sheet": "11"
+  },
+  {
+   "from": "SDTB2",
+   "to": "13RDEW-40A949H",
+   "type": "signal",
+   "sheet": "11"
+  }
+ ],
+ "unknown": [
+  {
+   "about": "Supply of the smoke detector 13RDEW-40A949H",
+   "reason": "Sheet 11 draws the detector terminals SDTB1 / SDTB2 and its wires, but not where its power or loop supply comes from.",
+   "needed": "Fire detection loop drawing (HSSD wiring 13RDEW-40A949HI)"
+  },
+  {
+   "about": "Whether the smoke detector circuit is a safety-related function",
+   "reason": "The project acceptance criteria that name safety-related circuits were not provided.",
+   "needed": "Approved project acceptance criteria / safety function list"
+  },
+  {
+   "about": "Alarm contacts of PS11, PS21, D11, D21",
+   "reason": "The contacts are drawn in the alarm circuit but are not separate parts with tags; what the alarm does when the device itself is missing is not documented.",
+   "needed": "Alarm / loop check specification"
+  },
+  {
+   "about": "Upstream supplies EXT-UPSA, EXT-UPSB, EXT-NORMAL and the loads in other cabinets",
+   "reason": "They are in cabinets 13DC04331, 13DC04332 and in the cabinets named on sheet 11; their own protection and behaviour are not part of this drawing.",
+   "needed": "Drawings of those cabinets"
+  },
+  {
+   "about": "Wire numbers and terminal numbers of the power wiring",
+   "reason": "The sheets give cable names and cross-sections (for example 6 mm2 BK), not numbered wires.",
+   "needed": "Wire list / cable schedule"
+  },
+  {
+   "about": "Ratings of X41 / X51 fuses F8-F10 and of the spare terminals",
+   "reason": "Drawn as SPARE without connected loads.",
+   "needed": "-"
+  }
+ ]
+}

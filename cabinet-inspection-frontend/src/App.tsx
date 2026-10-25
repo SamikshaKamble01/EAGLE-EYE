@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { FeedbackProvider } from "./components/Feedback";
 import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
+import Help from "./pages/Help";
 import History from "./pages/History";
 import InspectionDetail from "./pages/InspectionDetail";
 import NewInspection from "./pages/NewInspection";
@@ -17,6 +18,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/inspect" element={<NewInspection />} />
             <Route path="/history" element={<History />} />
+            <Route path="/help" element={<Help />} />
             <Route path="/inspections/:id" element={<InspectionDetail />} />
             <Route path="*" element={<NotFound />} />
           </Route>

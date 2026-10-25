@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import Cabinet3DViewer from "../components/cabinet3d/Cabinet3DViewer";
 import CheckSheet from "../components/CheckSheet";
+import ImpactPanel from "../components/ImpactPanel";
 import { useFeedback } from "../components/Feedback";
 import InspectionViewer from "../components/InspectionViewer";
 import RecheckDialog from "../components/RecheckDialog";
@@ -11,7 +12,7 @@ import { ErrorState, ScoreRing, SeverityBadge, Skeleton, StatusText, VerdictBadg
 import { checklistXlsxUrl, deleteInspection, getHistory, getInspection, reportUrl, snippetUrl } from "../lib/api";
 import { downloadCsv, downloadJson } from "../lib/export";
 import { defectTitle, formatDate, humanize } from "../lib/format";
-import type { Severity } from "../lib/types";
+import type { Impact, Observation, Severity } from "../lib/types";
 import { useApi } from "../lib/useApi";
 
 type Tab = "sheet" | "components" | "wires" | "pipeline";
@@ -31,6 +32,8 @@ export default function InspectionDetail() {
   const [recheckOpen, setRecheckOpen] = useState(false);
   const [problemsOnly, setProblemsOnly] = useState(false);
   const [copied, setCopied] = useState(false);
+  // impact analysis after an inspector observation (newer than the one in the loaded result)
+  const [impactEdit, setImpactEdit] = useState<{ id: string; impact: Impact; observations: Record<string, Observation> } | null>(null);
 
   const result = data?.result;
 
@@ -137,6 +140,8 @@ export default function InspectionDetail() {
   }
 
   const r = result;
+  const impact = impactEdit?.id === id ? impactEdit.impact : r.impact;
+  const observations = impactEdit?.id === id ? impactEdit.observations : r.observations;
   const s = r.summary;
   const pass = r.verdict === "PASS";
   const name = data.cabinet_name || "Unnamed cabinet";
@@ -468,9 +473,14 @@ export default function InspectionDetail() {
         </div>
       )}
 
+      {/* ---- root cause: what the missing parts / labels mean for the circuits ---- */}
+      {impact && (
+        <ImpactPanel id={id} impact={impact} observations={observations} onChanged={(i, o) => setImpactEdit({ id, impact: i, observations: o })} />
+      )}
+
       {/* ---- 3D cabinet view (illustrative layout, real check-sheet statuses) ---- */}
       <div className="mt-6">
-        <Cabinet3DViewer key={id} result={r} inspectionId={id} cabinetName={name} title="3D cabinet view" />
+        <Cabinet3DViewer key={id} result={r} impact={impact} inspectionId={id} cabinetName={name} title="3D cabinet view" />
       </div>
 
       {/* ---- expected vs found ---- */}

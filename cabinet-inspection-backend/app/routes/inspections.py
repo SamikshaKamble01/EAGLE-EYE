@@ -8,6 +8,7 @@ from flask import Blueprint, current_app, jsonify, request, send_file, url_for
 
 from app import checks, db
 from app.errors import AppError, NotFound, ValidationError
+from app.services import impact_service, topology_service
 from app.services.inspection_pipeline import run_inspection
 from app.utils.files import save_upload, validate_upload
 
@@ -38,7 +39,23 @@ def _load(inspection_id: str, include_details: bool = True):
         raise NotFound("Inspection not found.")
     if include_details and data.get("result"):
         checks.ensure_sheet(data["result"])       # older inspections: build the check sheet on the fly
+        _ensure_impact(data["result"], row)
     return data, row
+
+
+def _analyse(result: dict, pdf_path) -> dict:
+    topology = topology_service.load(topology_service.cabinet_tag(Path(pdf_path))) if pdf_path and Path(pdf_path).is_file() else None
+    policy = impact_service.load_policy(current_app.config.get("IMPACT_POLICY_PATH"))
+    return impact_service.analyze(result, topology, result.get("observations"), policy)
+
+
+def _ensure_impact(result: dict, row) -> None:
+    """Inspections saved before the impact analysis existed get one when they are opened."""
+    if "impact" not in result and "components" in result:
+        try:
+            result["impact"] = _analyse(result, row["pdf_path"])
+        except Exception:                      # never break opening an inspection for an extra analysis
+            log.exception("Impact analysis failed")
 
 
 def _send_existing(path_str: str | None, mimetype: str, download_name: str, as_attachment=False):
@@ -132,6 +149,39 @@ def recheck(inspection_id):
     db.create_inspection(new_id, cabinet_name, paths, parent_id=inspection_id,
                          root_id=row["root_id"] or inspection_id, round_no=round_no)
     return _run_and_respond(new_id, cabinet_name, paths, job_dir, previous=parent["result"], round_no=round_no)
+
+
+_OBS_COMPONENT = {"present", "missing", "unknown"}
+_OBS_LABEL = {"ok", "missing", "incorrect", "unreadable", "present", "unknown"}
+
+
+@bp.put("/inspections/<inspection_id>/observations")
+def put_observations(inspection_id):
+    """Inspector observations {"CB11": {"component": "present|missing|unknown", "label": "ok|missing|..."}}.
+    They beat what the photos suggest; the impact analysis is recomputed and saved."""
+    data, row = _load(inspection_id)
+    result = data.get("result")
+    if not result:
+        raise ValidationError("This inspection has no result yet.")
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        raise ValidationError("Send a JSON object: {tag: {component, label, note}}.")
+    obs = dict(result.get("observations") or {})
+    known = {c["tag"] for c in result.get("components", [])}
+    for tag, o in body.items():
+        if tag not in known:
+            raise ValidationError(f"'{tag}' is not a component of this inspection.")
+        if o is None:
+            obs.pop(tag, None)
+            continue
+        if not isinstance(o, dict) or o.get("component", "present") not in _OBS_COMPONENT                 or o.get("label", "ok") not in _OBS_LABEL:
+            raise ValidationError(f"Invalid observation for {tag}: component must be one of {sorted(_OBS_COMPONENT)}, "
+                                  f"label one of {sorted(_OBS_LABEL)}.")
+        obs[tag] = {k: o[k] for k in ("component", "label") if k in o} | {"note": str(o.get("note", ""))[:300]}
+    result["observations"] = obs
+    result["impact"] = _analyse(result, row["pdf_path"])
+    db.update_result(inspection_id, result)
+    return jsonify({"observations": obs, "impact": result["impact"]})
 
 
 @bp.get("/inspections/<inspection_id>/history")

@@ -24,6 +24,9 @@ class Config:
 
     # --- Storage -----------------------------------------------------------
     STORAGE_DIR = Path(os.getenv("STORAGE_DIR", BASE_DIR / "storage"))
+    # optional JSON file with the project's acceptance policy for the fault-impact analysis
+    # (see DEFAULT_POLICY in app/services/impact_service.py); empty = built-in defaults
+    IMPACT_POLICY_PATH = os.getenv("IMPACT_POLICY_PATH", "")
     DATABASE_PATH = Path(os.getenv("DATABASE_PATH", STORAGE_DIR / "inspections.db"))
 
     ALLOWED_IMAGE_EXT = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}

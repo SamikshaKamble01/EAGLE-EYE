@@ -79,6 +79,11 @@ def run(ctx: CheckContext) -> list[dict]:
     # "not photographed" (a note), not "missing" (a failure).
     view_of = {c.get("tag"): c.get("view") for c in ctx.expected_components if c.get("tag")}
     covered = {view_of.get(t) for t in present if view_of.get(t)}
+    # images matched to a drawing sheet tell exactly which tags they show; when every
+    # image was matched, a tag outside all of them was simply not in the pictures
+    refs = ctx.core.get("reference") or []
+    all_matched = bool(refs) and all(r for r in refs)
+    shown = {t for r in refs if r for t in r.get("in_view", {})}
 
     for index, c in enumerate(checks):
         tag, status, box, photo = c["tag"], c["status"], boxes[index][1], boxes[index][2]
@@ -92,6 +97,12 @@ def run(ctx: CheckContext) -> list[dict]:
                               severity="critical", code="COMPONENT_TYPE_MISMATCH",
                               message=d.get("message", f"{tag} is the wrong kind of device."), bbox=box, photo=photo,
                               fix=f"Replace the {_nice(c.get('detected_type'))} at this position with the {part}."))
+        elif all_matched and tag not in shown:
+            items.append(item(tag, what, "Present", "Not in the pictures", False, warn=True, severity="minor",
+                              code="NOT_PHOTOGRAPHED",
+                              message=f"{tag} is not in the part of the drawing the uploaded pictures show.",
+                              fix=f"Upload a picture that shows {tag}"
+                                  + (f" ({view_of[tag]} inside view)" if view_of.get(tag) else "") + " and run a re-check."))
         elif view_of.get(tag) and covered and view_of[tag] not in covered:
             side = view_of[tag]
             items.append(item(tag, what, "Present", "Not photographed", False, warn=True, severity="minor",

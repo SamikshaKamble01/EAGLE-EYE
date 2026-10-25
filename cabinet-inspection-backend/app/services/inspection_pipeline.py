@@ -8,7 +8,8 @@ import numpy as np
 
 from app import checks
 from app.errors import ParseError
-from app.services import excel_service, ocr_service, pdf_service, report_service, rule_engine, vision_service
+from app.services import (excel_service, impact_service, ocr_service, pdf_service, reference_service, report_service,
+                          rule_engine, topology_service, vision_service)
 
 log = logging.getLogger(__name__)
 
@@ -79,6 +80,22 @@ def run_inspection(inspection_id: str, cabinet_name: str, paths: dict, cfg: dict
     )
     result = timed("rules", rule_engine.evaluate, expected_components, expected_wiring, vision, ocr, rules)
 
+    # images that show a sheet of the drawing (screenshot / scan / print) are compared with
+    # it pixel by pixel: small changes are found and the drawing's tags tell what is shown
+    tags = {c["tag"] for c in expected_components if c.get("tag")}
+    references = []
+    for n, image in enumerate(images):
+        try:
+            references.append(timed(f"drawing_compare_{n + 1}" if len(images) > 1 else "drawing_compare",
+                                    reference_service.compare, image, Path(paths["pdf"]), tags.__contains__,
+                                    cfg.get("TESSERACT_CMD")))
+        except Exception:                 # the comparison is an extra; never fail the inspection for it
+            log.exception("Drawing comparison failed on photo %d", n + 1)
+            references.append(None)
+    if any(references):
+        reference_service.apply_to_result(result, references)
+        result["reference"] = references
+
     result["engines"] = {"vision": vision["backend"], "ocr": ocr["engine"]}
     result["expected"] = {"components": expected_components, "wiring": expected_wiring["wires"]}
     result["actual"] = {"detections": vision["detections"], "label_detections": vision["labels"],
@@ -103,6 +120,12 @@ def run_inspection(inspection_id: str, cabinet_name: str, paths: dict, cfg: dict
                               images=images)
     sheet = timed("checks", checks.run_all, ctx)
     checks.apply_to_result(result, sheet)
+
+    # root cause: what a missing part / label means for the circuits, from the documented topology
+    result["observations"] = {}
+    result["impact"] = timed("impact", impact_service.analyze, result,
+                             topology_service.load(topology_service.cabinet_tag(Path(paths["pdf"]))),
+                             None, impact_service.load_policy(cfg.get("IMPACT_POLICY_PATH")))
 
     if previous is not None:
         before = checks.sheet_of(previous)

@@ -24,17 +24,18 @@ import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, use
 import { useNavigate } from "react-router-dom";
 import { ApiError, createInspection, recheckInspection, snippetUrl } from "../../lib/api";
 import { humanize } from "../../lib/format";
-import type { InspectionResult } from "../../lib/types";
+import type { Impact, InspectionResult } from "../../lib/types";
 import CameraCapture from "../CameraCapture";
 import { useFeedback } from "../Feedback";
 import FileDrop from "../FileDrop";
-import { buildLayout, type Device3D, type DeviceStatus } from "./layout";
+import { buildLayout, IMPACT_COLOR, type Device3D, type DeviceStatus } from "./layout";
 import type { SceneApi } from "./CabinetScene";
 
 const CabinetScene = lazy(() => import("./CabinetScene"));
 
 interface Props {
   result?: InspectionResult | null; // real inspection result; null = example cabinet
+  impact?: Impact | null; // fault-impact analysis (newer than result.impact after an inspector observation)
   inspectionId?: string | null; // enables proof pictures and "photos only" re-checks
   cabinetName?: string;
   title?: string;
@@ -64,6 +65,12 @@ const DOT: Record<DeviceStatus, string> = {
   missing: "bg-red-500/40 ring-1 ring-red-500",
   unseen: "bg-slate-400/40 ring-1 ring-slate-400",
   unchecked: "bg-slate-400",
+};
+const IMPACT_TEXT: Record<string, string> = {
+  lost: "Supply lost (probable, from drawing)",
+  degraded: "Redundancy lost (probable)",
+  uncertain: "Impact unknown",
+  documentation: "Label / documentation defect",
 };
 const MAX_PHOTOS = 10;
 
@@ -96,11 +103,11 @@ function useDarkMode() {
   return dark;
 }
 
-export default function Cabinet3DViewer({ result, inspectionId, cabinetName, title = "3D cabinet view", height = "h-[560px]" }: Props) {
+export default function Cabinet3DViewer({ result, impact, inspectionId, cabinetName, title = "3D cabinet view", height = "h-[560px]" }: Props) {
   const navigate = useNavigate();
   const { toast } = useFeedback();
   const dark = useDarkMode();
-  const layout = useMemo(() => buildLayout(result), [result]);
+  const layout = useMemo(() => buildLayout(result, impact), [result, impact]);
   const api = useRef<SceneApi | null>(null);
   const frame = useRef<HTMLDivElement>(null);
   const [webgl] = useState(hasWebGL);
@@ -415,6 +422,11 @@ function DevicePanel({
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs">
         <span className={`rounded-md px-2 py-0.5 font-bold ${STATUS_CLASS[d.status]}`}>{STATUS_TEXT[d.status]}</span>
+        {d.impact && (
+          <span className="rounded-md px-2 py-0.5 font-bold" style={{ background: `${IMPACT_COLOR[d.impact] ?? "#64748b"}26`, color: IMPACT_COLOR[d.impact] }}>
+            {IMPACT_TEXT[d.impact] ?? d.impact}
+          </span>
+        )}
         <span className="rounded-md bg-raised px-2 py-0.5 font-semibold text-muted">Region {d.region}</span>
         <span className="rounded-md bg-raised px-2 py-0.5 font-semibold text-muted">Rail {d.rail + 1}</span>
       </div>

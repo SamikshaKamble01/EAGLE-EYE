@@ -1,6 +1,6 @@
 // Every call to the backend lives in this one file.
 // "/api" is forwarded to http://127.0.0.1:5000 by vite.config.ts.
-import type { Health, HistoryEntry, Inspection, InspectionList, Stats, Verdict } from "./types";
+import type { Health, HistoryEntry, Impact, Inspection, InspectionList, Observation, Stats, Verdict } from "./types";
 
 const BASE: string = import.meta.env.VITE_API_URL ?? "/api";
 
@@ -103,6 +103,17 @@ export function recheckInspection(id: string, images: File[], onUploadProgress?:
   for (const photo of images) form.append("image", photo);
   return upload(`/inspections/${id}/recheck`, form, onUploadProgress);
 }
+
+/**
+ * Inspector observations (component / label really present, missing ...). They beat what the photos
+ * suggest; the backend recomputes the fault-impact analysis and returns it. null removes an observation.
+ */
+export const saveObservations = (id: string, observations: Record<string, Observation | null>) =>
+  request<{ observations: Record<string, Observation>; impact: Impact }>(`/inspections/${id}/observations`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(observations),
+  });
 
 /** The first inspection of a cabinet and all its re-checks, oldest first. */
 export const getHistory = (id: string) => request<{ items: HistoryEntry[] }>(`/inspections/${id}/history`).then((r) => r.items);

@@ -5,7 +5,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber"
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { CABINET, type CabinetLayout, type Device3D, type DeviceStatus } from "./layout";
+import { CABINET, IMPACT_COLOR, type CabinetLayout, type Device3D, type DeviceStatus } from "./layout";
 
 export interface SceneApi {
   reset: () => void;
@@ -355,6 +355,13 @@ const Device = memo(function Device({ d, selected, dimmed, onSelect }: DevicePro
           <Edges color={selected ? SELECT_COLOR : ghost ? ghostColor : "#ef4444"} threshold={20} />
         )}
       </RoundedBox>
+      {d.impact && IMPACT_COLOR[d.impact] && (
+        <mesh>
+          <boxGeometry args={[d.w + 0.014, d.h + 0.014, d.d + 0.014]} />
+          <meshBasicMaterial visible={false} />
+          <Edges color={IMPACT_COLOR[d.impact]} threshold={20} />
+        </mesh>
+      )}
       {!ghost && <DeviceDetails d={d} />}
       {/* tag label on the front */}
       <mesh position={[0, d.h / 2 - 0.016 - (d.kind === "psu" ? 0.01 : 0), d.d / 2 + 0.0012]}>

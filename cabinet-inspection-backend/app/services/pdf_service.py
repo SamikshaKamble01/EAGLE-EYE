@@ -132,6 +132,8 @@ def _dedupe(items: list[dict]) -> list[dict]:
 # full drawing sets: nameplate tables + general arrangement views
 # --------------------------------------------------------------------------- #
 _DRAWING_TAG_RE = re.compile(r"^([A-Z]{1,5})(\d{1,3})([A-Z]?)$")
+_COMMON_PREFIXES = {"CB", "CF", "CL", "D", "DS", "F", "FSW", "K", "KA", "KM", "PS", "Q", "QF", "RCCB", "REC",
+                    "SB", "SPD", "TERM", "TS", "X", "XG", "XP", "XS", "XU"}
 
 
 def _page_texts(pdf) -> list[str]:
@@ -148,10 +150,25 @@ def _page_texts(pdf) -> list[str]:
         return [p.extract_text() or "" for p in pdf.pages]
 
 
+_SHEET_WORDS = ("GENERAL ARRANGEMENT", "NAMEPLATE", "BILL OF MATERIAL", "ABBREVIATION", "INDEX SHEET",
+                "LEGEND", "POWER DISTRIBUTION", "NETWORK CONNECTION", "EARTHING", "GROUNDING", "OUTLINE")
+
+
 def _page_title(text: str) -> str:
+    """The sheet title ("INTERNAL GENERAL ARRANGEMENT - REAR VIEW - 13GE03331"). Several
+    "... - <cabinet tag>" strings can be on a sheet (revision block, file name); the one
+    that names a known sheet kind wins."""
     text = text.upper()
-    m = re.search(r"([A-Z][A-Z0-9 &/,\-\(\)]{4,}?)\s+-\s+\d{2}[A-Z]{2}\d{3,}", text)   # "... - 13GE03331"
-    return m.group(1) if m else text[:200]
+    found = [m.group(1) for m in re.finditer(
+        r"([A-Z][A-Z0-9 &/,\-\(\)]{4,}?)\s+-\s+\d{2}[A-Z]{2}\d{3,}", text)]   # "... - 13GE03331"
+    for title in found:
+        if any(w in title for w in _SHEET_WORDS):
+            return title
+    for word in _SHEET_WORDS:                 # a title written without the cabinet tag
+        if word in text:
+            line = next((l for l in text.splitlines() if word in l), word)
+            return line.strip()[:200]
+    return found[0] if found else text[:200]
 
 
 def _abbreviations(page) -> dict[str, str]:
@@ -224,11 +241,15 @@ def _from_drawing(pdf) -> list[dict] | None:
                     if _DRAWING_TAG_RE.match(text):
                         nameplate_tags.setdefault(text, i + 1)
     prefixes = set(abbreviations) | {_DRAWING_TAG_RE.match(t).group(1) for t in nameplate_tags}
+    if not abbreviations:
+        # extract without an abbreviation sheet: the usual cabinet device letters
+        prefixes |= _COMMON_PREFIXES
     nameplate_tags = {t: p for t, p in nameplate_tags.items() if _is_device_tag(t, prefixes)}
 
     # 2. tags written on the layout views (devices that have no separate nameplate entry)
     ga_tags: dict[str, int] = {}
     views: dict[str, str] = {}               # tag -> "left" / "front" / "right" / "rear"
+    positions: dict[str, tuple[float, float]] = {}   # tag -> (across, down) inside its view, both 0..1
     for i in ga_pages:
         # pdfplumber, not pdfium: pdfium also returns hidden CAD text (block names such as
         # 'CB41 25A' inside a breaker symbol, fuse positions F1/F2 inside every terminal strip)
@@ -238,6 +259,17 @@ def _from_drawing(pdf) -> list[dict] | None:
         titles = [((w["x0"] + last["x1"]) / 2, w["text"].lower())          # centre of the whole title
                   for w, nxt, last in zip(words, words[1:], words[2:])
                   if w["text"] in ("LEFT", "FRONT", "RIGHT", "REAR") and nxt["text"] == "INSIDE" and last["text"] == "VIEW"]
+        # enclosure outline of every view = the outermost tall vertical lines around its title; a tag's
+        # place inside it (0..1 across, 0..1 down) is where the tag text stands on the sheet
+        outline = {}
+        if titles:
+            vlines = [o for o in pdf.pages[i].lines
+                      if abs(o["x1"] - o["x0"]) < 0.5 and (o["bottom"] - o["top"]) > 0.30 * pdf.pages[i].height]
+            for cx0, name in titles:
+                mine = [o for o in vlines if abs(o["x0"] - cx0) < 150]
+                if mine:
+                    outline[name] = (min(o["x0"] for o in mine), max(o["x0"] for o in mine),
+                                     min(o["top"] for o in mine), max(o["bottom"] for o in mine))
         for w in words:
             text = normalize_label(w["text"])
             if _is_device_tag(text, prefixes):
@@ -245,6 +277,11 @@ def _from_drawing(pdf) -> list[dict] | None:
                 if titles and text not in views:
                     cx = (w["x0"] + w["x1"]) / 2
                     views[text] = min(titles, key=lambda t: abs(t[0] - cx))[1]
+                    box = outline.get(views[text])
+                    if box and box[1] > box[0] and box[3] > box[2]:
+                        cy = (w["top"] + w["bottom"]) / 2
+                        positions[text] = (round(min(1.0, max(0.0, (cx - box[0]) / (box[1] - box[0]))), 3),
+                                           round(min(1.0, max(0.0, (cy - box[2]) / (box[3] - box[2]))), 3))
 
     items = []
     for tag in sorted(set(nameplate_tags) | set(ga_tags), key=_tag_order):
@@ -252,6 +289,8 @@ def _from_drawing(pdf) -> list[dict] | None:
         description = _describe(tag, abbreviations)
         item = _item(tag, description, 1, source)
         item["view"] = views.get(tag)          # side of the cabinet (None = not on a layout view)
+        if tag in positions:
+            item["pos"] = {"u": positions[tag][0], "v": positions[tag][1]}   # measured on the sheet
         if description and canonical_type(description) == "unknown":
             # the drawing says what it is (shield bar, thermostat ...): don't guess from the first letter
             item["type"] = re.sub(r"[^a-z]+", "_", re.sub(r"\(.*?\)", "", description.lower())).strip("_")
@@ -268,7 +307,7 @@ def _from_drawing(pdf) -> list[dict] | None:
 def _cache_file(pdf_path: Path, cache_dir: Path) -> Path:
     import hashlib
     digest = hashlib.sha256(Path(pdf_path).read_bytes()).hexdigest()[:32]
-    return Path(cache_dir) / f"pdf_{digest}_v2.json"
+    return Path(cache_dir) / f"pdf_{digest}_v4.json"
 
 
 class _Background:
