@@ -1,4 +1,4 @@
-⚡ AI-Powered Electrical Cabinet Inspection System
+#⚡ AI-Powered Electrical Cabinet Inspection System
 
 An AI-assisted industrial inspection platform that automates the verification of electrical components inside control cabinets by combining Computer Vision, OCR, Electrical Drawing Analysis, Automated Verification, and 3D Visualization.
 
